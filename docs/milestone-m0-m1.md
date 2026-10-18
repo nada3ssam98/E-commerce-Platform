@@ -2,30 +2,41 @@
 
 | | |
 |---|---|
-| **Status** | **Draft — not approved; implementation not started** |
-| **Last updated** | 2026-10-18 (architecture-review revision) |
-| **Depends on** | Approval of [architecture-decisions.md](architecture-decisions.md) revision 3 (ADR-01–04, ADR-05 password hashing, ADR-11, X) and of the v1.9 items that touch M0/M1 (see §1) |
+| **Status** | **Scope approved** (2026-10-18; M1-D1–M1-D5 approved) · **implementation blocked** until the gates in §1 are met |
+| **Last updated** | 2026-10-18 (review decisions recorded; ADR-04 revision 4) |
+| **Depends on** | [architecture-decisions.md](architecture-decisions.md) — ADR-01–03, 05, 11, X approved; **ADR-04 revision 4 pending review** — and requirements v1.9 (approved) |
 
 > **Goal.** Leave the repository with a working, tested foundation on which every later milestone is built as an end-to-end vertical slice: one codebase, a real database, CI, a **proven trusted-host path**, and **correct, tested tenant resolution** — before any commerce data exists.
 >
-> Where this document names a tool or version, it refers to the **proposed** ADRs. If an ADR changes during review, the deliverable stays and the tool changes.
+> Tools and versions named here are those of the approved ADRs. Trusted-host items follow ADR-04 **revision 4**, which is pending review; if the review changes it, those items change with it.
 >
 > **Not in M0/M1:** catalog, media, inventory, cart, checkout, orders, payments, staff login, customer accounts.
 
 ---
 
-## 1. Prerequisites (before M0 starts)
+## 1. Gates and prerequisites (before M0 starts)
 
-| # | Prerequisite | Why |
+**Implementation gates — all three must be met before any application code is written:**
+
+| # | Gate | Status |
 |---|---|---|
-| P1 | ADR-01, 02, 03, 04, 11 and the cross-cutting conventions approved | M0 builds exactly these |
-| P2 | ADR-05 **password hashing** part approved | M1 provisioning stores a temporary password hash |
-| P3 | RA-1, RA-2, RA-3 approved | Operator commands (RA-1, RA-2) and storefront routing (RA-3) |
-| P4 | v1.9 items C1 (TTL-only caching) and A4 (generated temporary passwords only) approved | M1 implements resolution caching and provisioning |
-| P5 | Decisions M1-D1 … M1-D5 and U-3 (`Retry-After` value) | Small scope choices inside M1 |
-| P6 | Toolchain baseline re-checked at M0 start (Node 26 LTS / Angular 23 availability — ADR-11) | Pins are recorded once, at scaffolding |
+| **G1** | **ADR-04 revision 4 reviewed and approved** (separate credentials, network binding, tests TH-1–TH-14) | ❌ Pending review |
+| **G2** | Planning documents consistent (requirements, domain model, system behavior, ADRs, change record, roadmap, this document) | ✅ Reconciled on branch `docs/record-review-decisions` — confirmed when that branch is reviewed and merged |
+| **G3** | **Branch protection on `main`** configured by the repository owner: pull request required, no direct pushes, no force pushes, no deletion. *(Required CI status checks are added in M0, once the workflow exists — M0-17.)* | ❌ Owner action; CI cannot verify it |
 
-**Not required before M0/M1:** ADR-06–10, ADR-12, RA-4–RA-8 (RA-7 is needed from M4, RA-8 from M5/M7), C2, C3, A1–A3, A5, D2.
+**Prerequisites:**
+
+| # | Prerequisite | Status |
+|---|---|---|
+| P1 | ADR-01, 02, 03, 11 and the cross-cutting conventions | ✅ Approved 2026-10-18 |
+| P1a | ADR-04 (trusted-host flow) | ❌ Revision 4 pending review (= G1) |
+| P2 | ADR-05 **password hashing** part | ✅ Approved 2026-10-18 (library vetted in M1) |
+| P3 | RA-1, RA-2, RA-3 | ✅ Approved 2026-10-18 |
+| P4 | v1.9 items C1 (TTL-only caching) and A4 (generated temporary passwords only) | ✅ Approved 2026-10-18 |
+| P5 | Decisions M1-D1 … M1-D5 and U-3 (`Retry-After` 3600 s) | ✅ Approved 2026-10-18 |
+| P6 | Node/Angular pair chosen at M0 start from Angular's **official compatibility table** (not Node 26 merely because it is LTS — ADR-11) | Done as the first M0 step; recorded in the M0 pull request |
+
+**Not required before M0/M1:** ADR-06–10 (approved; needed from M2/M3), ADR-12 and **U-5** (open; required before the first shared environment, not for local M0/M1), RA-4–RA-8 (approved; RA-7 is first needed in M4, RA-8 in M5/M7).
 
 ---
 
@@ -40,15 +51,15 @@
 | Repository | Layout per ADR-03: `/frontend` (Angular CLI workspace — `storefront` with SSR, `admin` client-only; libraries for design-system foundation, i18n/formatting, and generated `api-contracts`), `/backend` (.NET solution), `/contracts`, `/dev` |
 | Backend | .NET 10 solution (`.slnx`, central package management, nullable on, warnings as errors): `Api` host (ASP.NET Core Minimal APIs), `Cli` host (console app, no commands yet), empty domain projects with the **allowed project-reference graph** from system-behavior §1, `Infrastructure`. API provides: options validation on start (fail fast), JSON logging with compliance redaction, Problem Details error format with `code` (ADR X), request id, OpenTelemetry wiring, `GET /api/health` (liveness) and `GET /api/health/ready` (database reachable). Default response header `Cache-Control: private, no-store` unless an endpoint opts in to public caching. The `Worker` host is added in M2. |
 | Database | PostgreSQL (local container); EF Core 10 + Npgsql; an initial migration; CI applies migrations from scratch; separate migration and application database roles |
-| **Trusted-host path** (ADR-04) | Local edge (Caddy) implementing edge rules 1–4: deletes client host-override headers, sets `X-Platform-Host` and the edge key. SSR server: edge-key verification before rendering; server-only interceptor calling the API on `INTERNAL_API_BASE_URL` with the verified host and the SSR key, forwarding no cookies. API: trusted-path middleware (edge key or SSR key), `X-Platform-Host` as the only host source, SSR-key route allow-list (in M0: `GET /api/health*`), Forwarded Headers never processing `X-Forwarded-Host`. Test-only request-context diagnostic (ADR-04 §4c). Store resolution itself comes in M1. |
+| **Trusted-host path** (ADR-04 revision 4) | **Three separate credentials:** API edge key (edge → API), SSR ingress key (edge → SSR), SSR-to-API key (SSR → API). Local edge (Caddy) implementing edge rules 1–4: deletes all client host-override and `X-Platform-*` headers, sets `X-Platform-Host`, adds **exactly one credential per route** (never the API edge key on SSR routes). SSR server: verifies the SSR ingress key before rendering; server-only interceptor calls the API on `INTERNAL_API_BASE_URL` with the verified host and the SSR-to-API key, `GET` only, forwarding no cookies or incoming credentials; configuration has **no** API edge key setting. API: trusted-path middleware classifying callers by credential **and** source network (rejects the SSR ingress key outright); SSR caller limited to the allow-list (in M0: `GET /api/health*`); `X-Platform-Host` as the only host source; Forwarded Headers never processing `X-Forwarded-Host`. Test-only diagnostics on API and SSR (ADR-04 §4d). Store resolution itself comes in M1. |
 | Contracts | `contracts/openapi.json` generated at build (`Microsoft.Extensions.ApiDescription.Server`); **`openapi-typescript` 7.13.0** (exact pin) via `npm run contracts:generate` = `openapi-typescript ../contracts/openapi.json --output projects/api-contracts/src/lib/schema.d.ts`; one example endpoint typed end to end; shared test-vector file location established |
 | Frontend | Storefront SSR renders one page that calls `/api/health` server-side; admin builds and serves a placeholder page; `<html lang dir>` wiring present |
-| Local environment | Aspire AppHost (or Docker Compose, per ADR-11) starting PostgreSQL, the API, and the Angular apps; Caddy serving `https://*.localhost` and `https://admin.localhost` with trusted local certificates |
-| **Reproducible installs** | `global.json` (.NET 10 SDK, `rollForward: latestPatch`); `RestorePackagesWithLockFile=true` + committed `packages.lock.json`; `.nvmrc` (Node 24 LTS ≥ 24.13.1, unless P6 moves to Node 26) + `engines`; `.npmrc` with `save-exact=true`; committed `package-lock.json`; Angular 22.x, Playwright 1.62.x, openapi-typescript 7.13.0 pinned exactly |
-| Configuration hygiene | `dotnet user-secrets` for local backend secrets (including the edge and SSR keys); `.env.example` / `appsettings.Development.json` with placeholders only; `.gitignore` covering secrets, `bin/`, `obj/`, `node_modules/`, build output; `.gitattributes` normalizing line endings |
-| CI | GitHub Actions on every push and pull request: `dotnet restore --locked-mode` / build / test; migrations from scratch; **OpenAPI drift check** (`dotnet build` → `npm run contracts:generate` → `git diff --exit-code -- contracts/ frontend/projects/api-contracts/`); `npm ci`, lint, test, production builds; **browser-bundle scan** for the SSR key and internal API URL (TH-8); secret scan; dependency audit (`dotnet list package --vulnerable`, `npm audit`); E2E through the local edge |
+| Local environment | Aspire AppHost (ADR-11) starting PostgreSQL, the API, and the Angular apps; Caddy serving `https://*.localhost` and `https://admin.localhost` with trusted local certificates |
+| **Reproducible installs** | `global.json` (.NET 10 SDK, `rollForward: latestPatch`); `RestorePackagesWithLockFile=true` + committed `packages.lock.json`; `.nvmrc` + `engines` with the Node version chosen under P6 (baseline: Node 24 LTS ≥ 24.13.1); `.npmrc` with `save-exact=true`; committed `package-lock.json`; Angular major chosen under P6 (baseline 22.x), Playwright 1.62.x, openapi-typescript 7.13.0 pinned exactly |
+| Configuration hygiene | `dotnet user-secrets` / local secret files for the three trusted-path keys (each process receives only its own); `.env.example` / `appsettings.Development.json` with placeholders only; `.gitignore` covering secrets, `bin/`, `obj/`, `node_modules/`, build output; `.gitattributes` normalizing line endings |
+| CI | GitHub Actions on every push and pull request: `dotnet restore --locked-mode` / build / test; migrations from scratch; **OpenAPI drift check** (`dotnet build` → `npm run contracts:generate` → `git diff --exit-code -- contracts/ frontend/projects/api-contracts/`); `npm ci`, lint, test, production builds; **browser-bundle scan** for all trusted-path key names/values and the internal API URL (TH-8); secret scan; dependency audit (`dotnet list package --vulnerable`, `npm audit`); E2E through the local edge |
 | Test harness | xUnit v3 projects; `WebApplicationFactory` + Testcontainers for .NET (PostgreSQL) + Respawn helper; architecture test project (ArchUnitNET or NetArchTest) asserting the domain reference graph; Playwright (TypeScript) running through the local edge; Angular unit test runner configured |
-| Documentation | `README.md`: prerequisites (.NET 10 SDK, Node.js per `.nvmrc`, container runtime, trusting the local certificate), one-command local start, how to run each test layer, and the **manual branch-protection setup** (below) |
+| Documentation | `README.md`: prerequisites (.NET 10 SDK, Node.js per `.nvmrc`, container runtime, trusting the local certificate), one-command local start, how to run each test layer, and the branch-protection configuration (G3, M0-17) |
 
 ### Out of scope
 Any business table, authentication, store resolution, styling beyond a placeholder, deployment.
@@ -62,19 +73,24 @@ Any business table, authentication, store resolution, styling beyond a placehold
 | M0-3 | `https://admin.localhost/` serves the admin placeholder; `/api/health` is reachable same-origin on both hosts. | Playwright |
 | M0-4 | **TH-1:** a browser request with forged `X-Forwarded-Host`, `Forwarded`, and `X-Platform-Host` headers reaches the API with the **edge-set** `X-Platform-Host`. | E2E through the edge, asserting via the test-only diagnostic |
 | M0-5 | **TH-2 / TH-3:** direct requests to the API or the SSR server that bypass the edge (no key, wrong key, forged host header) are rejected with `403`; the SSR server renders nothing and makes no API call. | Integration tests against the API and SSR ports |
-| M0-6 | **TH-4 / TH-5:** the SSR server's internal API call carries the verified host and the SSR key; the SSR key used on a `POST` or a non-allow-listed route is rejected with `403`. | E2E + API integration tests |
-| M0-7 | **TH-8:** browser bundles contain neither the SSR key nor the internal API URL. | CI bundle scan |
-| M0-8 | **TH-9:** the request-context diagnostic returns `404` when the API runs as `Production`; startup fails if the diagnostic flag is set outside `Testing`. | Integration test starting the host in each configuration |
-| M0-9 | The API refuses to start with missing or invalid configuration (including missing keys) and names the missing setting without printing secret values. | Test of options validation on start |
-| M0-10 | Logs redact cookies, `Authorization`, the edge/SSR keys, and data classified as tokens, passwords, phones, emails. | Unit test on the logging/redaction configuration |
+| M0-6 | **TH-4 / TH-5:** the SSR server's internal API call carries the verified host and the SSR-to-API key; that key used on a `POST`, or on admin, auth, cart, checkout, account, or any non-allow-listed route, is rejected with `403`. | E2E + API integration tests |
+| M0-7 | **TH-8:** browser bundles contain no trusted-path key names/values and no internal API URL. | CI bundle scan |
+| M0-8 | **TH-9:** the API and SSR diagnostics return `404` in the `Production` configuration; startup fails if a diagnostic flag is set outside `Testing`. | Integration test starting each server in each configuration |
+| M0-8a | **TH-11:** the SSR ingress key presented to the API on any route (public, admin, write) is rejected with `403`. | API integration test |
+| M0-8b | **TH-12:** a valid API edge key presented from an SSR source address on privileged routes, and a valid SSR-to-API key from an edge or unknown address, are rejected with `403`. | API integration test setting the connection's remote address |
+| M0-8c | **TH-13:** through the edge, a store-page request (including a client-forged API edge key) reaches the SSR server with only the edge-set SSR ingress key and **no** API edge key; an `/api/*` request reaches the API with only the API edge key. | E2E with API and SSR diagnostics |
+| M0-8d | **TH-14:** the SSR server's configuration has no API edge key setting; startup fails if one is supplied. | Configuration test |
+| M0-9 | The API and SSR server refuse to start with missing or invalid configuration (including missing keys) and name the missing setting without printing secret values. | Tests of configuration validation on start |
+| M0-10 | Logs redact cookies, `Authorization`, all three trusted-path keys, and data classified as tokens, passwords, phones, emails. | Unit test on the logging/redaction configuration |
 | M0-11 | Migrations run from zero on an empty database in CI; the application role cannot run DDL. | CI integration job |
 | M0-12 | A project reference that violates the domain dependency graph (e.g., `Catalog` → `Ordering`) fails the build or the architecture test. | Architecture test with a deliberate violation fixture |
 | M0-13 | Changing an endpoint without regenerating `openapi.json` and the TypeScript types fails CI; the Angular example call compiles only against the generated types. | CI drift check |
 | M0-14 | Installs are reproducible: CI uses `dotnet restore --locked-mode` and `npm ci`; a dependency change without an updated lockfile fails CI; tool versions match the baseline files. | CI |
 | M0-15 | An endpoint that does not opt in to public caching returns `Cache-Control: private, no-store`. | Integration test |
 | M0-16 | No secrets in the repository; placeholders only in example configuration. | CI secret scan + review |
+| M0-17 | Once the CI workflow exists, the repository owner adds its checks as **required status checks** to the `main` branch protection configured under G3. | **Manual** — owner reviews the settings and records the date in the README |
 
-**Manual repository configuration (not provable by CI):** the repository owner configures branch protection on `main` — pull request required, the CI checks above required to pass, no direct pushes. CI can only show that checks run and pass; it cannot prove that GitHub enforces them. **Verified by:** the owner reviews the branch-protection settings and records the date in the README. *(Requires the owner's GitHub access.)*
+**Manual repository configuration (not provable by CI):** branch protection is configured in two steps — the base rules **before M0** (G3) and the required CI checks **during M0** (M0-17). CI can only show that checks run and pass; it cannot prove that GitHub enforces them. *(Requires the owner's GitHub access.)*
 
 ---
 
@@ -102,7 +118,7 @@ Any business table, authentication, store resolution, styling beyond a placehold
 
 | Deliverable | Detail |
 |---|---|
-| Host normalization | Lowercase, strip port, strip trailing dot, validate syntax — from `X-Platform-Host` only, accepted only with a valid edge or SSR key (ADR-04) |
+| Host normalization | Lowercase, strip port, strip trailing dot, validate syntax — from `X-Platform-Host` only, accepted only from a caller classified as *edge* or *SSR* by credential and source network (ADR-04 revision 4) |
 | Store resolver | Host → StoreDomain → Store; **unknown host → `STORE_NOT_FOUND`, never a fallback**; in-process cache ≤ 60 s used for rendering decisions only (C1) |
 | Effective status | Organization `Suspended` ⇒ store behaves as `Suspended`. Operator commands read the **current** status from the database, never the cache. |
 | `GET /api/storefront/config` | Storefront view per domain-model §1.9: brand name, resolved display name + source locale, effective status, supported/default locales, currency, `pricesIncludeTax`, timezone, shipping rule, support contacts, platform limits. **Excludes** `organizationId`, `lowStockThreshold`, `version`. Added to the SSR-key allow-list. |
@@ -128,14 +144,14 @@ Any business table, authentication, store resolution, styling beyond a placehold
 | Gate | Content |
 |---|---|
 | **Tenant-isolation harness** | Two-store fixture builder (`brand-a`, `brand-b`, different organizations, different locales); helper asserting a store-host request returns only its own store's data; applied to every storefront endpoint from now on |
-| **Host-spoofing suite** | TH-1, TH-4, TH-6, TH-7, TH-10 (ADR-04 §4d) re-run **with real store resolution**: forged headers from the browser and on SSR-originated calls never change the resolved store |
+| **Host-spoofing suite** | TH-1, TH-4, TH-6, TH-7, TH-10–TH-13 (ADR-04 §4e) re-run **with real store resolution**: forged headers from the browser and on SSR-originated calls never change the resolved store, and no SSR-held credential reaches a non-public route |
 | **Schema isolation test** | Enumerates tables; fails if a store-scoped table lacks `store_id NOT NULL` or a same-store reference lacks a composite foreign key (ADR-02) |
 | Invariants touched | INV-1, INV-9 (store side), INV-12 (status read from the database), INV-13 (display name in default locale) |
 
 ### Out of scope (M1)
 Staff login and admin API (M2); `disable-staff-user`, `enable-staff-user`, `reset-staff-password` commands (M2 — they need sessions; reset revokes sessions per A5); settings editing (M2); logo and theme (Branding); shared cache, RA-7 allow-list, and deployment (ADR-12); "Track an order" / "My orders" pages (M8a / M9).
 
-### Decisions inside M1 (need your approval)
+### Decisions inside M1 (approved 2026-10-18 as proposed)
 
 | # | Question | Recommendation |
 |---|---|---|
@@ -152,7 +168,7 @@ Staff login and admin API (M2); `disable-staff-user`, `enable-staff-user`, `rese
 | M1-1 | `brand-a.localhost` and `brand-b.localhost` resolve to their own stores; each config response contains only that store's data. | Isolation harness (integration + Playwright) |
 | M1-2 | An unknown host returns the platform 404 with `Cache-Control: no-store` and no store data; no fallback store ever. | Integration + Playwright |
 | M1-3 | Host normalization: `Brand-A.localhost:443` and `brand-a.localhost.` resolve to `brand-a` (TH-10). | Unit + integration |
-| M1-4 | **Host spoofing:** forged `X-Forwarded-Host`, `Forwarded`, or `X-Platform-Host` from a browser (TH-1) or on an SSR-originated call (TH-4) never changes the resolved store; the API ignores its own `Host` header (TH-6); a request without a valid key never reaches resolution (TH-2/TH-3). | E2E through the edge + API integration |
+| M1-4 | **Host spoofing:** forged `X-Forwarded-Host`, `Forwarded`, or `X-Platform-Host` from a browser (TH-1) or on an SSR-originated call (TH-4) never changes the resolved store; the API ignores its own `Host` header (TH-6); a request without a valid credential over the expected network path never reaches resolution (TH-2, TH-3, TH-11, TH-12); the SSR server never receives the API edge key (TH-13). | E2E through the edge + API integration |
 | M1-5 | `/` redirects (302) to the default locale regardless of `Accept-Language`; `/fr/x` and an unsupported `/en/x` on an Arabic-only store redirect to `/ar/x`; single-locale stores still use the prefix. | Playwright |
 | M1-6 | `<html lang dir>` is `ar`/`rtl` and `en`/`ltr` respectively; the display name falls back to the default locale when the requested locale has no value, and carries its source locale. | Playwright + unit |
 | M1-7 | `Setup` → "Coming soon", HTTP 200, `noindex`, `public, max-age=0, s-maxage=60`. `Suspended` store **or** suspended organization → **503** with `Retry-After` and **`Cache-Control: no-store`**, plus support contacts. `Active` → shell. | Integration + Playwright, one test per status combination, asserting headers |

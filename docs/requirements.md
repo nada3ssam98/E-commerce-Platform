@@ -2,14 +2,14 @@
 
 | | |
 |---|---|
-| **Status** | **v1.9 — Draft, pending approval** (last approved version: **v1.8**) |
+| **Status** | **v1.9 — Approved** (2026-10-18) |
 | **Last updated** | 2026-10-18 |
 | **Phase** | 1 — Requirements Analysis (complete; maintained through later phases) |
 | **Current phase** | 4 — Architecture (in review; see [architecture-decisions.md](architecture-decisions.md)) |
 
 > **How to use this document.** This is the single source of truth for all later phases. If a design or implementation decision contradicts this document, either the decision is wrong or this document must be updated first — with a new entry in the [Decision log](#28-decision-log).
 >
-> **v1.9 draft:** the changes from the architecture review (2026-10-18) are applied in this draft and recorded in [proposed-doc-changes.md](proposed-doc-changes.md). They are **not approved** until you approve v1.9; decision-log entries for them are marked *pending approval*.
+> **v1.9 (approved 2026-10-18):** the architecture-review changes are recorded in the [change record](proposed-doc-changes.md) and the [decision log](#28-decision-log). One dependency remains under review: the trusted-host **design** in [ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) (revision 4, pending review). The requirement itself (Section 22 item 17) is approved.
 >
 > Items marked **[DEFAULT]** were accepted as defaults and can be changed cheaply. Everything else is approved. Remaining assumptions are listed in [Section 25](#25-assumptions).
 >
@@ -180,8 +180,8 @@ Because the default-locale value is required, resolved required content is **nev
 - Removing a locale from `supportedLocales` hides that content but does not delete it.
 
 ### Locale in URLs
-- Every storefront page URL starts with its locale: `/ar/...` or `/en/...` — **including single-locale stores**. *[RA-3, pending approval]*
-- `/` redirects to the store's default locale **without** using `Accept-Language`, so the redirect is deterministic; unsupported locale prefixes redirect to the same path in the default locale. *[RA-3, pending approval]*
+- Every storefront page URL starts with its locale: `/ar/...` or `/en/...` — **including single-locale stores**. *[RA-3, approved 2026-10-18]*
+- `/` redirects to the store's default locale **without** using `Accept-Language`, so the redirect is deterministic; unsupported locale prefixes redirect to the same path in the default locale. *[RA-3, approved 2026-10-18]*
 - Each page declares its canonical URL (own locale, primary host) and `hreflang` alternates for the store's supported locales plus `x-default`.
 - Cache keys distinguish store and locale. Details in [system-behavior §4.3](system-behavior.md#43-locale-in-urls-approved).
 
@@ -335,7 +335,7 @@ Stock is tracked **per variant**:
 - Admins change **`onHand` only**, through three explicit operations: **Receive (+N)**, **Remove (−N)** (reason required), and **Count (set X)**. `committed` is never edited manually. Details in [domain-model §4.4](domain-model.md#44-admin-adjustments).
 - An optional **initial quantity** may be given when a variant is first created, recorded as a `Received` movement in the same transaction as the product save ([domain-model §4.5](domain-model.md#45-initial-stock-on-variant-creation)).
 - Reasons: `Restock`, `Initial stock`, `Stock count correction`, `Damaged/lost`, `Other` (with note).
-- **All stock adjustments are idempotent** — Receive, Remove, Count, and Contain (8.5.1). Each carries a client-generated **request id**, unique per **`(storeId, requestId)`** and enforced by the server in the same transaction. Repeating a request id with the **same payload** returns the original result without applying the adjustment again or creating another stock movement; reusing it with a **different payload** is rejected. *(Count and Contain request ids: RA-5, pending approval.)*
+- **All stock adjustments are idempotent** — Receive, Remove, Count, and Contain (8.5.1). Each carries a client-generated **request id**, unique per **`(storeId, requestId)`** and enforced by the server in the same transaction. Repeating a request id with the **same payload** returns the original result without applying the adjustment again or creating another stock movement; reusing it with a **different payload** is rejected. *(Count and Contain request ids: RA-5, approved 2026-10-18.)*
 - An adjustment that would make `onHand < committed` is **rejected** (Remove and Count). *(MVP constraint: keeps `available` non-negative at all times.)* The rejection starts the discrepancy workflow (8.5.1).
 - **Receive and Remove are delta operations** and are safe under concurrent stock changes. **Count sets an absolute value** and therefore uses optimistic concurrency: the request includes the `onHand` value the admin saw, and the backend rejects it if stock changed in the meantime. Containment uses the same expected-value check.
 - Idempotency and the expected-value check are **separate protections**: the request id prevents a retried request from applying twice; the expected value prevents a count based on stale data from overwriting newer stock.
@@ -496,10 +496,10 @@ Order (fulfillment) status and payment status are **independent fields** with th
 - Customers may cancel **only while `Pending`**. From `Confirmed` onwards they must contact the store.
 - Staff may cancel from `Pending`, `Confirmed`, or `Processing`. Once `Shipped`, the order cannot be cancelled — it ends as `Delivered` or `DeliveryFailed`.
 - **Failed delivery attempt vs. failed delivery:**
-  - A **failed attempt** (customer not home, phone unanswered) is **not a status**. The order stays `Shipped`, remains eligible for further attempts, and stock and payment are unchanged. *(How staff record an attempt is an open question — [OQ4](#26-open-questions).)*
+  - A **failed attempt** (customer not home, phone unanswered) is **not a status**. The order stays `Shipped`, remains eligible for further attempts, and stock and payment are unchanged. Staff record an attempt, if they wish, as an **internal note** ([OQ4](#26-open-questions), resolved).
   - **`DeliveryFailed`** is the **terminal** outcome, set only when the store abandons delivery. It cannot be retried or reversed; a customer who still wants the goods places a new order.
 - **Stock across fulfillment:** committed stock is released only by cancellation (before `Shipped`). At `Shipped`, `onHand` and `committed` are both reduced (goods leave the warehouse). Neither failed attempts nor `DeliveryFailed` change stock. Stock is **restored** only when staff **record the return** (Section 8.6), per line, for the units actually restocked.
-- **Cancellation reasons** *(revised in v1.9 — pending approval)*:
+- **Cancellation reasons** *(revised in v1.9 — approved 2026-10-18)*:
   - *Customer or guest:* changed my mind, ordered by mistake, other.
   - *Staff:* customer request, unreachable for confirmation, out of stock, duplicate order, other.
   - A **note is required** when the reason is "other" (1–500 characters *[DEFAULT]*) and optional otherwise. The reason must come from the list for the actor's type; the backend rejects any other value.
@@ -563,7 +563,7 @@ Applies to: order placement, status transitions, order edits, cancellations, pay
 6. **Totals:** subtotal, shipping, and grand total are recomputed by the backend (tax is included in prices and not itemized — Section 14).
 7. **Preview, then apply.**
    1. *Preview:* the admin's proposed changes are sent to the backend, which validates them and returns the recalculated lines, totals, and a **preview fingerprint** **without saving anything**.
-   2. *Apply:* the admin confirms; the request includes the **order version** and the **preview fingerprint** (a hash of the previewed lines, unit prices, quantities, shipping, and totals). The backend recomputes the preview inside the apply transaction; if the order version or the fingerprint differs, the apply is rejected and a new preview is shown. A matching grand total alone is never sufficient, because offsetting changes can keep the total equal while the order differs. *(Revised in v1.9 — pending approval.)*
+   2. *Apply:* the admin confirms; the request includes the **order version** and the **preview fingerprint** (a hash of the previewed lines, unit prices, quantities, shipping, and totals). The backend recomputes the preview inside the apply transaction; if the order version or the fingerprint differs, the apply is rejected and a new preview is shown. A matching grand total alone is never sufficient, because offsetting changes can keep the total equal while the order differs. *(Revised in v1.9 — approved 2026-10-18.)*
 8. Applying an edit is a single atomic operation (Section 11.4): stock changes, new totals, and the order event (with before/after values and the staff user) are saved together or not at all.
 9. Existing snapshot data of untouched lines is never modified (Section 10.4).
 
@@ -589,7 +589,7 @@ Applies to: order placement, status transitions, order edits, cancellations, pay
 - Amounts in different currencies are never added together.
 
 ### Tax
-*(Revised in v1.9 — pending approval.)*
+*(Revised in v1.9 — approved 2026-10-18.)*
 - **Prices are tax-inclusive.** Staff enter prices including tax; storefront, cart, checkout, orders, and emails display prices including tax. Store setting `pricesIncludeTax = true` for all MVP stores, **read-only**; there is no per-store choice between tax-inclusive and tax-exclusive pricing.
 - `pricesIncludeTax` states the **pricing policy only**. It does **not** make a tax calculation possible: extracting a tax amount would require a defined rate and applicable rules, which the MVP does not have.
 - **The MVP does not calculate, extract, store, or itemize a tax amount.** No tax rate exists anywhere in the system (backend or frontend). Cart, checkout, order pages, and emails show a fixed statement that prices include tax.
@@ -727,14 +727,14 @@ Registered customers view full details and cancel `Pending` orders from their ac
 
 ### 18.3 Initial credentials (seeding)
 - **No credentials are committed to source control.** Real `.env` files are git-ignored; a committed `.env.example` contains placeholders only.
-- The provisioning script takes the initial admin **email** as input and **generates a random temporary password** with a cryptographically secure generator, printing it **once** to the operator's console. *(v1.9: the option to supply the password through an environment variable or secret store is removed — no requirement needs it, and it would put a plaintext password in configuration. Pending approval.)*
+- The provisioning script takes the initial admin **email** as input and **generates a random temporary password** with a cryptographically secure generator, printing it **once** to the operator's console. *(v1.9: the option to supply the password through an environment variable or secret store is removed — no requirement needs it, and it would put a plaintext password in configuration. Approved 2026-10-18.)*
 - Only the password hash is stored. The account is flagged **must change password on first login**.
 - The temporary password is shown **once, only after provisioning succeeds completely**, and is **never logged or persisted** in plaintext.
 - **Existing staff email:** the platform-wide identity is **reused** and receives a new store membership with an explicitly assigned role. No duplicate identity is created, the existing password is **not** reset, no temporary password is generated or revealed, and no permissions carry over from other stores ([domain-model §1.15](domain-model.md#115-provisioning-and-existing-staff-identities)).
 - **Local development:** development stores and staff users are created with the same provisioning script. No development credentials are committed or shared.
 
 ### 18.4 Known limitation: staff password recovery
-Self-service staff password recovery is **deferred**. Until it exists, a forgotten staff password can only be reset by the **platform operator** running the **staff password reset command** — separate from provisioning, which never changes an existing credential. The command issues a new random temporary password (shown once), sets "must change password", **revokes all of the staff user's existing sessions**, and records a `StaffPasswordReset` platform audit event. *(Revised in v1.9 — pending approval.)*
+Self-service staff password recovery is **deferred**. Until it exists, a forgotten staff password can only be reset by the **platform operator** running the **staff password reset command** — separate from provisioning, which never changes an existing credential. The command issues a new random temporary password (shown once), sets "must change password", **revokes all of the staff user's existing sessions**, and records a `StaffPasswordReset` platform audit event. *(Revised in v1.9 — approved 2026-10-18.)*
 
 ---
 
@@ -814,8 +814,8 @@ Admin screens are designed after the domain model is approved.
 13. **Development tooling** (seed data, local proxies, test doubles, test-only diagnostics) is never deployed and provides no security guarantees.
 14. **CSRF protection** for all cookie-authenticated requests (Section 22.1).
 15. **Platform-operator audit:** sensitive operator actions (provisioning, activation, suspension, staff identity and membership changes, staff password resets) are recorded as append-only **PlatformAuditEvents** with actor, action, target, timestamp, and non-sensitive context. Audit records never contain credentials, secrets, or tokens ([domain-model §1.14](domain-model.md#114-platformauditevent)).
-16. **Locking:** operations that suspension must block **and** that commit stock or payment effects — order placement, order item-edit apply, and customer/guest cancellation — take **shared** locks on the organization and store rows; store/organization status changes take **exclusive** locks. All other operations use narrower locks in a fixed global order ([system-behavior §5](system-behavior.md#5-concurrency-locking-and-idempotency)). *(Revised in v1.9 — RA-6, pending approval.)*
-17. **Trusted host:** the store is identified only from the host received by the trusted edge; client-supplied forwarded-host headers are never trusted ([architecture ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching), proposed).
+16. **Locking:** operations that suspension must block **and** that commit stock or payment effects — order placement, order item-edit apply, and customer/guest cancellation — take **shared** locks on the organization and store rows; store/organization status changes take **exclusive** locks. All other operations use narrower locks in a fixed global order ([system-behavior §5](system-behavior.md#5-concurrency-locking-and-idempotency)). **Decision D8 is preserved:** fulfillment of existing orders and the staff operations D8 permits remain available while suspended, subject to permissions, workflow rules, stock invariants, and audit logging. *(Revised in v1.9 — RA-6, approved 2026-10-18 with this narrow interpretation.)*
+17. **Trusted host:** the store is identified only from the host received by the trusted edge; client-supplied forwarded-host headers are never trusted. Edge-to-SSR, edge-to-API, and SSR-to-API credentials are separate, and the SSR server's credential is limited to public read endpoints. *(Requirement approved 2026-10-18; design in [ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) revision 4 — pending review.)*
 
 ### 22.1 CSRF protection
 Guest cart sessions, customer sessions, and staff sessions all use cookies, which the browser attaches automatically — so every state-changing request must prove it came from our own app.
@@ -863,8 +863,8 @@ Recorded here because they constrain the requirements. They are re-examined in P
 | **Storefront tenant resolution** | Host name → store lookup by the backend. Subdomains in the MVP; custom domains later. Path-based tenancy rejected. |
 | **Admin hosting** | Separate admin host (e.g., `admin.<platform-domain>`); store in the route. |
 | **Same-origin API** | Each app calls its API under the same origin (`/api`), simplifying cookies and avoiding CORS. Dev uses a proxy. |
-| **Development approach** *(v1.9, replaces "Mock API" — pending approval)* | Features are built as end-to-end slices against the real backend. Frontend test doubles may be used for isolated component and unit tests, but there is **no separate mock API implementation**. The API's OpenAPI document, generated from the backend, is the contract; Angular's contract types are generated from it ([ADR-03](architecture-decisions.md#adr-03-repository-layout-and-api-contracts)). |
-| **Backend** *(proposed — pending approval of ADR-01/02)* | C# on .NET (LTS) with ASP.NET Core; PostgreSQL. Details in [architecture-decisions.md](architecture-decisions.md). |
+| **Development approach** *(v1.9, replaces "Mock API" — approved 2026-10-18)* | Features are built as end-to-end slices against the real backend. Frontend test doubles may be used for isolated component and unit tests, but there is **no separate mock API implementation**. The API's OpenAPI document, generated from the backend, is the contract; Angular's contract types are generated from it ([ADR-03](architecture-decisions.md#adr-03-repository-layout-and-api-contracts)). |
+| **Backend** *(approved 2026-10-18 — ADR-01/02)* | C# on .NET 10 (LTS) with ASP.NET Core; PostgreSQL with EF Core. Details in [architecture-decisions.md](architecture-decisions.md). |
 | **State management** | No NgRx or facade layer assumed; evaluated in Phase 4. |
 
 ---
@@ -903,7 +903,7 @@ Not explicitly confirmed. They are believed safe; challenge any that are wrong.
 
 R10 (whole-unit quantities only; no products sold by weight or length) was **confirmed** on 2026-10-18.
 
-Cross-domain assumptions **RA-1 to RA-8** (operator identity, provisioning, locale URLs, idempotency, locking, caching, database primitives) are listed with their full text in [system-behavior §7.2](system-behavior.md#72-remaining-assumptions--pending-approval). All are **pending approval**.
+Cross-domain assumptions **RA-1 to RA-8** (operator identity, provisioning, locale URLs, idempotency, locking, caching, database primitives) are listed with their full text in [system-behavior §7.2](system-behavior.md#72-approved-assumptions-ra-1-to-ra-8). All eight were **approved on 2026-10-18** (RA-6 with a narrow interpretation that preserves D8).
 
 ---
 
@@ -915,8 +915,8 @@ No open question blocks Phase 2.
 |---|---|---|
 | OQ1 | Theme customization scope (which tokens a store may change) | Phase 5 |
 | OQ2 | Customer data deletion/export and compliance with Egypt's Personal Data Protection Law (Law 151 of 2020) | Before a real launch |
-| OQ3 | **Tax and invoicing:** which tax, invoice, and e-receipt obligations apply to stores selling through the platform, and whether itemized tax is required on any document the platform issues. The MVP issues no tax invoices or receipts and itemizes no tax (Section 14). *(Added in v1.9 — pending approval.)* | Before a commercial launch |
-| OQ4 | **Recording failed delivery attempts:** how staff record an attempt while the order stays `Shipped` (Section 11.1). Recommended: use the existing **internal note** in the MVP; a dedicated attempt event is deferred. *(Added in v1.9.)* | Before M8a (order admin) |
+| OQ3 | **Tax and invoicing:** which tax, invoice, and e-receipt obligations apply to stores selling through the platform, and whether itemized tax is required on any document the platform issues. The MVP issues no tax invoices or receipts and itemizes no tax (Section 14). **Commercial-launch gate:** must be resolved before a commercial launch; resolving it does **not** add tax calculation to the MVP. *(Added in v1.9; U-6 approved 2026-10-18.)* | Before a commercial launch |
+| ~~OQ4~~ | **Resolved 2026-10-18 (U-1):** staff record a failed delivery attempt as an **internal note** (`NoteAdded`) while the order stays `Shipped`; no new status or event type in the MVP. | — |
 
 ---
 
@@ -1007,18 +1007,26 @@ No open question blocks Phase 2.
 | 2026-10-18 | Provisioning reuses existing staff identities without credential changes |
 | 2026-10-18 | Narrowest-scope locking with a global lock order; notifications separate from business idempotency |
 
-**v1.9 changes — pending approval** (architecture review, 2026-10-18; details in [proposed-doc-changes.md](proposed-doc-changes.md)). These entries record what the v1.9 draft changes; they become decisions only when v1.9 is approved.
+**v1.9 changes** (architecture review, 2026-10-18; details in the [change record](proposed-doc-changes.md)).
 
 | Date | Change | Status |
 |---|---|---|
-| 2026-10-18 | TTL-only cache expiry (≤ 60 s) everywhere; business operations always read current store status (C1) | Pending approval |
-| 2026-10-18 | Separate cancellation reasons for customers/guests and staff; note required for "other" (C2) | Pending approval |
-| 2026-10-18 | Item-edit apply verified by order version + preview fingerprint, never by total alone (C3) | Pending approval |
-| 2026-10-18 | Receive/Remove are deltas; Count/Contain use the expected `onHand`; all four idempotent per `(storeId, requestId)`; no inventory `version` (A1, A2, RA-5) | Pending approval |
-| 2026-10-18 | Category archive/restore uses `catalog.write` (A3) | Pending approval |
-| 2026-10-18 | Temporary staff passwords are always generated; staff password reset is a separate audited command that revokes sessions (A4, A5) | Pending approval |
-| 2026-10-18 | No separate mock API; end-to-end slices; OpenAPI-generated contract types (D1) | Pending approval |
-| 2026-10-18 | Tax-inclusive prices; no tax amount calculated or itemized in the MVP; tax/invoice review before launch (D2, OQ3) | Pending approval |
-| 2026-10-18 | Failed delivery attempts keep the order `Shipped`; `DeliveryFailed` is terminal; stock restored only by recording the return (OQ4 open) | Pending approval |
-| 2026-10-18 | Placement, item-edit apply, and customer/guest cancellation serialize with suspension (RA-6) | Pending approval |
-| 2026-10-18 | Store identified only via the trusted edge host (ADR-04, proposed) | Pending approval |
+| 2026-10-18 | TTL-only cache expiry (≤ 60 s) everywhere; business operations always read current store status (C1) | Approved 2026-10-18 |
+| 2026-10-18 | Separate cancellation reasons for customers/guests and staff; note required for "other" (C2) | Approved 2026-10-18 |
+| 2026-10-18 | Item-edit apply verified by order version + preview fingerprint, never by total alone (C3) | Approved 2026-10-18 |
+| 2026-10-18 | Status and phase labels updated after the changes were applied (C4) | Approved 2026-10-18 |
+| 2026-10-18 | Receive/Remove are deltas; Count/Contain use the expected `onHand`; all four idempotent per `(storeId, requestId)`; no inventory `version` (A1, A2, RA-5) | Approved 2026-10-18 |
+| 2026-10-18 | Category archive/restore uses `catalog.write` (A3) | Approved 2026-10-18 |
+| 2026-10-18 | Temporary staff passwords are always generated; staff password reset is a separate audited command that revokes sessions (A4, A5) | Approved 2026-10-18 |
+| 2026-10-18 | No separate mock API; end-to-end slices; OpenAPI-generated contract types (D1) | Approved 2026-10-18 |
+| 2026-10-18 | Tax-inclusive prices; no tax amount calculated or itemized in the MVP; tax/invoice compliance is a commercial-launch gate (D2, OQ3) | Approved 2026-10-18 |
+| 2026-10-18 | Failed delivery attempts keep the order `Shipped` and are recorded as internal notes; `DeliveryFailed` is terminal; stock restored only by recording the return (R2, OQ4/U-1) | Approved 2026-10-18 |
+| 2026-10-18 | Suspended `503` page not cached; responses private unless explicitly public (R3) | Approved 2026-10-18 |
+| 2026-10-18 | Inventory idempotency processing order and integration tests IN-1–IN-9 (R4) | Approved 2026-10-18 |
+| 2026-10-18 | RA-1–RA-8 approved; RA-6 interpreted narrowly: placement, item-edit apply, and customer/guest cancellation serialize with suspension; **D8 preserved** | Approved 2026-10-18 |
+| 2026-10-18 | U-1–U-4 and U-6 approved as recommended (internal note for attempts; error log + email alerts; `Retry-After` 3600 s; 1–500-character note; tax/invoice review before launch) | Approved 2026-10-18 |
+| 2026-10-18 | M1-D1–M1-D5 approved as proposed | Approved 2026-10-18 |
+| 2026-10-18 | Architecture revision 3 approved **except ADR-04**; ADR-12 deferred | Approved 2026-10-18 |
+| 2026-10-18 | Store identified only via the trusted edge host, with separate edge-to-SSR, edge-to-API, and SSR-to-API credentials (R1) | Requirement approved; **ADR-04 revision 4 pending review** |
+| 2026-10-18 | U-5 (production edge capability) | **Open** — resolve before the first shared environment |
+| 2026-10-18 | **Requirements v1.9 approved** | Approved 2026-10-18 |
