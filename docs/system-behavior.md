@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **Phase 3 approved (2026-10-18).** RA-1–RA-8 approved after the second review of 2026-10-18 (RA-5 and RA-6 as revised; the four second-review clarifications included) — §7.2. R1–R4, U-1–U-4, U-6 approved; ADR-04 revision 4 approved 2026-10-18. **Still open:** U-5 (production edge capability) and the implementation items deferred to the architecture phase (§7.4, P4-1–P4-7). |
+| **Status** | **Phase 3 approved (2026-10-18).** RA-1–RA-8 approved after the second review of 2026-10-18 (RA-5 and RA-6 as revised; the four second-review clarifications included) — §7.2. R1–R4, U-1–U-4, U-6 approved; ADR-04 revision 4 approved 2026-10-18. **Still open:** U-5 (production edge capability) and the implementation items deferred to the architecture phase (§7.4: P4-2–P4-7 open; P4-1 decided 2026-10-18; P4-4 decided by M1-D3, scope to confirm). |
 | **Last updated** | 2026-10-18 |
 | **Phase** | 3 — Cross-domain relationships and end-to-end workflows |
 | **Based on** | [requirements.md](requirements.md) v1.9 (approved 2026-10-18), [domain-model.md](domain-model.md) (approved) |
@@ -106,7 +106,7 @@ Reconciliation **never replaces** transactional guards: every workflow enforces 
 | INV-9 | **Access:** admin requests need a valid session, membership, and permission; customer sessions match the store | Store, Customer | Per request | — |
 | INV-10 | **Audit completeness:** every stock change has a movement; every order change has an event | Inventory, Ordering | Same transaction | — |
 | INV-11 | **Media retention:** media referenced by order lines is never deleted | Media, Ordering | Cleanup job condition | — |
-| INV-12 | **No operation prohibited while suspended commits after a suspension commits:** order placement, item-edit apply, customer/guest cancellation, cart writes (including merge), registrations, catalog/media/settings/branding writes | Store, Cart, Ordering, Customer, Catalog, Media | Checked inside the operation's transaction against the current database status **and synchronized with status changes** (§5.1); placement, item-edit apply, and customer/guest cancellation hold shared organization/store locks; the mechanism for the remaining prohibited writes is finalized in the architecture phase (§7.4) | — |
+| INV-12 | **No operation prohibited while suspended commits after a suspension commits:** order placement, item-edit apply, customer/guest cancellation, cart writes (including merge), registrations, catalog/media/settings/branding writes | Store, Cart, Ordering, Customer, Catalog, Media | Checked inside the operation's transaction against the current database status **and synchronized with status changes** (§5.1); placement, item-edit apply, and customer/guest cancellation hold shared organization/store locks; every other prohibited write takes the same shared locks (P4-1, approved 2026-10-18; §5.1) | — |
 | INV-13 | **Content completeness:** non-archived products and categories have required default-locale content | Store, Catalog | Default-locale change blocked while content is missing | — |
 
 ---
@@ -219,7 +219,8 @@ Principle: **the narrowest lock that protects a specific invariant**, acquired i
 | **Store activation / suspension / reactivation** | Store row | **Exclusive** | INV-12 |
 | **Organization suspension / reactivation** | Organization row | **Exclusive** | INV-12 for all its stores |
 | **Item-edit apply; customer/guest cancellation** *(added 2026-10-18 — RA-6, approved 2026-10-18)* | Organization row, then store row | **Shared** | INV-12 — no item edit or customer cancellation commits after a suspension commits (both are forbidden while suspended and change stock and payment) |
-| **Other operations prohibited while suspended** (cart writes incl. merge, registrations, staff catalog/media/settings/branding writes) *(RA-6 second review, approved 2026-10-18)* | Synchronized with status changes — mechanism per P4-1 (§7.4) | — | INV-12 — none commits after a suspension commits; must not serialize non-conflicting operations against each other |
+| **Other operations prohibited while suspended** (cart writes incl. merge, registrations, staff catalog/media/settings/branding writes) *(RA-6 second review; mechanism P4-1, approved 2026-10-18)* | Organization row, then store row | **Shared** | INV-12 — none commits after a suspension commits; shared locks do not block each other |
+| **Writes that modify the store or organization row itself** (`names` settings group; activation; status changes) *(P4-1, approved 2026-10-18, rule 6)* | That row | **Exclusive**, taken directly — never upgraded from a shared lock | Avoids lock-upgrade deadlocks; conflicts with all shared holders |
 | Order transition, item edit, delivery edit, payment action, return, cancellation | The order (version check) | Exclusive | One concurrent change wins; INV-3, INV-5 |
 | | Inventory levels touched | Exclusive, ascending variant id | INV-2 |
 | Inventory adjustment (Receive, Remove, Count, Contain) | That inventory level | Exclusive | INV-2; serializes same-variant retries before the request-id lookup (W8) |
@@ -239,9 +240,9 @@ The rule: **an operation that is prohibited while a store is suspended must neve
 | Order placement | ❌ | Status checked in the transaction; **shared** organization/store locks (approved) |
 | Order item-edit apply | ❌ | Same — **shared** organization/store locks (approved) |
 | Customer/guest cancellation | ❌ | Same — **shared** organization/store locks (approved) |
-| Cart writes (add, set quantity, remove, adjust to available, **merge**) | ❌ | Status checked in the transaction **and synchronized with status changes**, so none commits after a suspension commits. Mechanism finalized in the architecture phase (§7.4, P4-1). |
+| Cart writes (add, set quantity, remove, adjust to available, **merge**) | ❌ | **Shared** organization/store locks, then the status check, in the same transaction (P4-1, approved 2026-10-18) |
 | Customer registration | ❌ | Same as cart writes (P4-1) |
-| Staff catalog, media, settings, and branding writes (incl. publish) | ❌ | Same as cart writes (P4-1). The store-status part of the staff permission check is **re-evaluated inside the transaction**, not only at the start of the request. |
+| Staff catalog, media, settings, and branding writes (incl. publish) | ❌ | Same as cart writes (P4-1). The store-status part of the staff permission check is **re-evaluated inside the transaction**, not only at the start of the request. Writes that modify the store row itself (`names` group) take its **exclusive** lock directly (P4-1 rule 6). |
 | Fulfillment transitions, staff cancellation, mark as paid, payment correction, return recording, delivery edits, stock adjustments | ✅ (D8) | **No synchronization needed** — allowed in both states, subject to permissions, workflow rules, stock invariants, and audit logging (domain-model §1.6) |
 | Login, logout, password reset, order history, guest lookup | ✅ (read-only access) | Not synchronized |
 | Catalog reads, quotes, storefront reads | read-only | No locks |
@@ -249,9 +250,37 @@ The rule: **an operation that is prohibited while a store is suspended must neve
 **Strategy requirements** (for the mechanism chosen in the architecture phase):
 1. The status check and the operation's writes happen in the **same transaction**, and the check is **serialized with status changes**: either the operation commits before the suspension (and is valid), or it observes the suspension and is rejected (`STORE_NOT_ACTIVE` / `403`).
 2. Operations that do **not** conflict with each other must **not** be serialized against each other (e.g., concurrent cart writes or placements in one store must still run in parallel); only status changes may block them, briefly.
-3. The approved shared/exclusive organization-and-store lock pattern (placement, item-edit apply, customer/guest cancellation) is one acceptable mechanism; using it for the remaining prohibited writes, or an alternative with an equivalent guarantee, is decided in P4-1 with attention to hot paths (cart writes).
+3. **Decided (P4-1, approved 2026-10-18):** every prohibited write uses the shared organization-and-store lock pattern already approved for placement, item-edit apply, and customer/guest cancellation — see *P4-1 decision* below.
 4. Organization status is part of the check (effective status), using the global lock order (§5.2).
 5. Every prohibited-operation rejection is a normal business error with no side effects.
+
+**P4-1 decision — suspension synchronization for all prohibited writes** *(approved 2026-10-18)*
+
+| # | Rule |
+|---|---|
+| 1 | **Scope:** cart writes (add, set quantity, remove, adjust to available, merge), customer registration, and staff catalog, media, settings, and branding writes (incl. publish) — in addition to placement, item-edit apply, and customer/guest cancellation, which already use this pattern. |
+| 2 | **Lock first:** the transaction's first locks are `FOR SHARE` on the organization row, then the store row (global lock order, §5.2). |
+| 3 | **Then check:** the effective status (organization and store) is taken from **the result of that lock statement**, read **without change tracking** — never from the resolution cache or an already-tracked entity. Staff writes re-evaluate the status-dependent part of their permission here. |
+| 4 | **Then write and commit:** the operation's own locks follow in the global order (cart → order → inventory → media), then its writes; the shared locks are held until commit or rollback. |
+| 5 | **Rejection:** `409 STORE_NOT_ACTIVE` (or `403` if already refused at the start of the request); nothing written. A media file stored before a rejected transaction stays unreferenced and is removed by the 24-hour cleanup (W12). |
+| 6 | **Writes that modify the store or organization row itself** (`names` settings group, activation, status changes) take that row's **exclusive** lock **directly** — never a shared lock first — so two writers cannot deadlock by upgrading shared locks. Lock order still applies: a `names` write first takes `FOR SHARE` on the organization row (rule 2, so it is synchronized with an organization suspension), then the **exclusive** lock on the store row in place of `FOR SHARE`, and checks the effective status from those results. They briefly block, and are blocked by, shared holders; acceptable for rare admin/operator actions. |
+| 7 | **D8 operations** take no organization/store lock. |
+| 8 | **Fallback:** if monitoring shows store-row contention, *non-financial* prohibited writes may move to transaction-level advisory locks (shared for writes, exclusive for status changes) — only through a new ADR-02 revision. |
+
+Rejected alternatives: advisory locks everywhere (a second mechanism beside the approved row locks), SERIALIZABLE isolation (retries everywhere), and re-checking the status before commit (no guarantee).
+
+**Required tests** (real PostgreSQL; harness built in M1, each category added with the milestone that builds it):
+
+| # | Scenario | Expected |
+|---|---|---|
+| SU-1 | A prohibited write holds its shared locks; a suspension starts | The suspension waits; the write commits and is valid |
+| SU-2 | The suspension commits first; a prohibited write starts | `STORE_NOT_ACTIVE`; no rows written |
+| SU-3 | SU-1 and SU-2 for every category in rule 1 | As above |
+| SU-4 | Two prohibited writes in the same store run concurrently | Neither blocks the other |
+| SU-5 | D8 operations during and after a suspension | Never blocked |
+| SU-6 | SU-1 and SU-2 with an **organization** suspension | As above |
+| SU-7 | The store entity is already tracked as `Active` in the same `DbContext`; a suspension commits; a prohibited write runs | It sees `Suspended` (rule 3) |
+| SU-8 | Two concurrent `names` settings writes | Serialized; no deadlock (rule 6) |
 
 **Database:** PostgreSQL is the selected database ([ADR-02](architecture-decisions.md#adr-02-database-and-data-access), approved). The detailed concurrency design — transaction boundaries, optimistic concurrency, row-level locking, stock invariants and overselling prevention, and the suspension-race strategy above — is finalized in the architecture phase (§7.4) and verified by integration tests against real PostgreSQL. [RA-8]
 
@@ -852,7 +881,7 @@ The exclusive lock waits for in-flight operations synchronized with suspension t
 | Area | Immediately | Within ≤ 60 s |
 |---|---|---|
 | Order placement, order item-edit apply, customer/guest cancellation | **Blocked** — status checked in each transaction and serialized with the status change by shared/exclusive organization-and-store locks (approved) | — |
-| Cart writes (incl. merge), registrations, staff catalog/media/settings/branding writes | **Blocked** — status checked in each transaction and synchronized with the status change (mechanism per §7.4, P4-1); **no millisecond-race exception** [RA-6, approved 2026-10-18] | — |
+| Cart writes (incl. merge), registrations, staff catalog/media/settings/branding writes | **Blocked** — shared organization/store locks, then the status check, in each transaction (P4-1); **no millisecond-race exception** [RA-6, approved 2026-10-18] | — |
 | Admin permissions | Filtered on the next request (§1.7 of the domain model); for prohibited writes, the status part is re-checked inside the transaction | — |
 | Public catalog pages | — | Branded "temporarily unavailable" (503, `no-store`, `Retry-After`) as cached catalog pages expire |
 | Open orders | Fulfillment continues; item edits blocked | — |
@@ -935,17 +964,17 @@ All eight were first approved on 2026-10-18 (previous wording: [change record §
 
 ### 7.4 Items deferred to the architecture phase
 
-Phase 3 fixes **what** must hold; these items decide **how**, on PostgreSQL (ADR-02). None is decided here.
+Phase 3 fixes **what** must hold; these items decide **how**, on PostgreSQL (ADR-02). Each item is decided only by explicit approval.
 
-| # | Item | Requirement it must satisfy | Source |
-|---|---|---|---|
-| **P4-1** | Synchronization mechanism for prohibited writes other than placement, item-edit apply, and customer/guest cancellation (cart writes incl. merge, registrations, staff catalog/media/settings/branding writes) | None commits after a suspension commits; non-conflicting operations are not serialized against each other; global lock order (5.1, 5.2) | RA-6 |
-| **P4-2** | How refused or failed operator commands are recorded (the business transaction rolls back) | Operation, timestamp, outcome, reason code, declared actor; no secrets | RA-1 |
-| **P4-3** | Whether the add-to-cart response signals that it was a replay | Idempotency guaranteed by the request record regardless (5.3.1) | RA-4 |
-| **P4-4** | Status code and cache headers of locale redirects (`/` and unsupported prefixes) | Deterministic; not cacheable as permanent by browsers (4.3) | RA-3 |
-| **P4-5** | Inventory: request-fingerprint composition; whether expected `onHand` is a sufficient concurrency token for Count/Contain (value changes and returns between read and write); exact error codes and bodies | W8 conflict table | RA-5 |
-| **P4-6** | Whether rejected inventory adjustments (stale, shortage) need a domain-level audit record in addition to application logs | Applied adjustments: exactly one movement; replays and rejections change nothing (W8) | RA-5 |
-| **P4-7** | Consolidated transaction boundaries, optimistic-concurrency tokens, and row-level locking per workflow, with the PostgreSQL integration tests that verify them | INV-2, INV-3, INV-12; 5.1–5.3 | RA-8 |
+| # | Item | Requirement it must satisfy | Source | Status | Needed by |
+|---|---|---|---|---|---|
+| **P4-1** | Synchronization mechanism for prohibited writes other than placement, item-edit apply, and customer/guest cancellation | None commits after a suspension commits; non-conflicting operations are not serialized against each other; global lock order (5.1, 5.2) | RA-6 | **Decided 2026-10-18** — shared organization/store locks for every prohibited write; store/organization-row writers lock exclusively and directly (§5.1 *P4-1 decision*; ADR-02) | M1 (status-change side); M2 onward (prohibited writes) |
+| **P4-2** | How refused or failed operator commands are recorded (the business transaction rolls back) | Operation, timestamp, outcome, reason code, declared actor; no secrets | RA-1 | Open | **Before M1** (provisioning and activation refusals) |
+| **P4-3** | Whether the add-to-cart response signals that it was a replay | Idempotency guaranteed by the request record regardless (5.3.1) | RA-4 | Open | First replayable endpoint (M5) |
+| **P4-4** | Status code and cache headers of locale redirects (`/` and unsupported prefixes) | Deterministic; not cacheable as permanent by browsers (4.3) | RA-3 | **Decided by M1-D3** (302; `public, max-age=0, s-maxage=60`). To confirm: same for unsupported/missing prefixes; query handling in `Location` given M1-15 | Before M1 (confirmation) |
+| **P4-5** | Inventory: request-fingerprint composition; whether expected `onHand` is a sufficient concurrency token for Count/Contain (value changes and returns between read and write); exact error codes and bodies | W8 conflict table | RA-5 | Open | M5 |
+| **P4-6** | Whether rejected inventory adjustments need a domain-level audit record in addition to application logs | Applied adjustments: exactly one movement; replays and rejections change nothing (W8) | RA-5 | Open | M5 |
+| **P4-7** | Consolidated transaction boundaries, optimistic-concurrency tokens, and row-level locking per workflow, with the PostgreSQL integration tests that verify them | INV-2, INV-3, INV-12; 5.1–5.3 | RA-8 | Open — sub-items: **(a)** EF Core transaction rules — *documented in ADR-02 with P4-1*; **(b)** server-side retry policy for `40P01`/`40001`, including whether Npgsql's execution strategy is used; **(c)** `lock_timeout` / `statement_timeout`; **(d)** the per-workflow matrix and its tests | (a) M1; (b), (c) M2; (d) M2–M7, per workflow |
 
 ---
 

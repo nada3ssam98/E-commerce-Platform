@@ -35,6 +35,7 @@
 | P4 | v1.9 items C1 (TTL-only caching) and A4 (generated temporary passwords only) | ✅ Approved 2026-10-18 |
 | P5 | Decisions M1-D1 … M1-D5 and U-3 (`Retry-After` 3600 s) | ✅ Approved 2026-10-18 |
 | P6 | Node/Angular pair chosen at M0 start from Angular's **official compatibility table** (not Node 26 merely because it is LTS — ADR-11) | Done as the first M0 step; recorded in the M0 pull request |
+| P7 | Phase 4 items needed before M1 ([system-behavior §7.4](system-behavior.md#74-items-deferred-to-the-architecture-phase)): **P4-1** suspension synchronization; **P4-2** recording refused/failed operator commands; **P4-4** confirmation of M1-D3's scope | P4-1 ✅ Approved 2026-10-18 · P4-2 ❌ Open · P4-4 confirmation ❌ Open |
 
 **Not required before M0/M1:** ADR-06–10 (approved; needed from M2/M3), ADR-12 and **U-5** (open; required before the first shared environment, not for local M0/M1), RA-4–RA-8 (RA-4, RA-7, RA-8 approved with clarifications; RA-5 and RA-6 revised in the second review and approved 2026-10-18 — [change record §7](proposed-doc-changes.md#7-ra-1-to-ra-8--second-review-2026-10-18); RA-7 is first needed in M4, RA-8 in M5/M7). RA-1–RA-3 remain approved; their clarifications (declared operator identity and audit outcome, deterministic redirects) apply to the M1 operator commands and locale routing.
 
@@ -161,6 +162,7 @@ Any business table, authentication, store resolution, styling beyond a placehold
 |---|---|
 | **Tenant-isolation harness** | Two-store fixture builder (`brand-a`, `brand-b`, different organizations, different locales); helper asserting a store-host request returns only its own store's data; applied to every storefront endpoint from now on |
 | **Host-spoofing suite** | TH-1, TH-4, TH-6, TH-7, TH-10–TH-13 (ADR-04 §4e) re-run **with real store resolution**: forged headers from the browser and on SSR-originated calls never change the resolved store, and no SSR-held credential reaches a non-public route |
+| **Suspension-race harness** (P4-1) | Real-PostgreSQL harness for SU-1, SU-2, SU-6, and SU-7 against the M1 status-change commands, using a test-only fixture operation that follows P4-1 rules 2–4; later milestones add their categories (SU-3) |
 | **Schema isolation test** | Enumerates tables; fails if a store-scoped table lacks `store_id NOT NULL` or a same-store reference lacks a composite foreign key (ADR-02) |
 | Invariants touched | INV-1, INV-9 (store side), INV-12 (status read from the database), INV-13 (display name in default locale) |
 
