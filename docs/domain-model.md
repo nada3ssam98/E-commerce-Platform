@@ -255,7 +255,8 @@ All transitions are performed by the **platform operator** (scripts in the MVP).
 #### Enforcement
 - **The backend is the authority.** Every business operation checks the **current** effective status in the database — never a cached value. Cart writes and order placement are rejected with a `STORE_NOT_ACTIVE` error when the effective status is not `Active`.
 - Order placement, order item-edit apply, and customer/guest cancellation check the store status **inside their transaction**, under a shared lock on the organization and store rows ([system-behavior §5.1](system-behavior.md#51-lock-scope)). An operation committed before the suspension is valid; none can commit after. *(Item edits and customer cancellation added 2026-10-18 — RA-6, approved 2026-10-18.)*
-- **D8 is preserved.** Operations that stay **allowed** while suspended (fulfillment transitions, staff cancellation, mark as paid, payment correction, return recording, delivery-detail edits, stock adjustments — table above) remain available, subject to permissions, workflow rules, stock invariants, and audit logging; they are unaffected by suspension and need no synchronization with it. *(RA-6 narrow interpretation, approved 2026-10-18.)*
+- **Every other operation prohibited while suspended** — cart writes (including the login merge), customer registration, and staff catalog, media, settings, and branding writes — is held to the **same rule: it must never commit after a suspension commits.** There is no millisecond-race exception. Its status check runs inside its transaction and is synchronized with status changes; the mechanism is decided in the architecture phase ([system-behavior §7.4](system-behavior.md#74-items-deferred-to-the-architecture-phase), P4-1). *(RA-6 second review, 2026-10-18 — pending approval.)*
+- **D8 is preserved.** Operations that stay **allowed** while suspended (fulfillment transitions, staff cancellation, mark as paid, payment correction, return recording, delivery-detail edits, stock adjustments — table above) remain available, subject to permissions, workflow rules, stock invariants, and audit logging; they are unaffected by suspension and need no synchronization with it. *(RA-6 narrow interpretation, approved 2026-10-18; unchanged by the second review.)*
 - The frontend reads the status from the store configuration to show the right pages and banners — UX only.
 
 ### 1.7 Identity, membership, and permissions
@@ -391,8 +392,10 @@ A minimal, **append-only**, platform-wide record of sensitive **platform-operato
 |---|---|---|
 | `id` | ✅ | |
 | `occurredAt` | ✅ | Timestamp |
-| `actor` | ✅ | Operator identifier supplied to the script (no operator accounts in the MVP — [system-behavior RA-1](system-behavior.md#72-approved-assumptions-ra-1-to-ra-8)). It is a **self-declared audit label, not verified proof of identity**; accountability relies on controlling who can run operator commands. |
+| `actor` | ✅ | Operator name or ID supplied to the command (no operator accounts in the MVP — [system-behavior RA-1](system-behavior.md#72-assumptions-ra-1-to-ra-8)). It is a **declared identity, not independently authenticated proof of identity**, and **not** a replacement for authentication or authorization; accountability relies on controlling who can run operator commands. |
 | `action` | ✅ | See below |
+| `outcome` | ✅ | `Succeeded`, `Refused`, or `Failed` *(added 2026-10-18 — RA-1 second review)* |
+| `reasonCode` | — | For `Refused` / `Failed`, e.g., `StaffUserDisabled`, `ActivationPreconditionMissing`, `ValidationFailed` — never sensitive values |
 | `targetType`, `targetId` | ✅ | e.g., `Store`, `Organization`, `StaffUser`, `StoreMembership` |
 | `storeId` | — | When the action concerns a store |
 | `details` | — | **Non-sensitive** before/after context (e.g., status before/after, role granted) |
@@ -401,7 +404,8 @@ A minimal, **append-only**, platform-wide record of sensitive **platform-operato
 **Actions:** `OrganizationCreated`, `StoreProvisioned`, `StoreActivated`, `StoreSuspended`, `StoreReactivated`, `OrganizationSuspended`, `OrganizationReactivated`, `StaffUserCreated`, `StaffMembershipGranted`, `StaffPasswordReset`, `StaffUserDisabled`, `StaffUserEnabled`, `ReconciliationTriggered`.
 
 **Rules**
-- Written **in the same transaction** as the action it records.
+- **Successful** actions (`outcome = Succeeded`) are written **in the same transaction** as the action they record.
+- **Refused or failed** operator commands are recorded too (`Refused` / `Failed` with a reason code). Because the business transaction rolls back, this record is written separately; the mechanism is decided in the architecture phase ([system-behavior §7.4](system-behavior.md#74-items-deferred-to-the-architecture-phase), P4-2). *(Added 2026-10-18 — RA-1 second review.)*
 - **Never** contains passwords, password hashes, temporary passwords, session or reset tokens, or other secrets.
 - Never updated or deleted.
 
@@ -411,7 +415,7 @@ A minimal, **append-only**, platform-wide record of sensitive **platform-operato
 |---|---|
 | Not found | New StaffUser + StaffPasswordCredential with a random temporary password and `mustChangePassword` |
 | Found, `Active` | **Reuse the identity.** No duplicate identity, **no credential change, no temporary password generated or revealed** |
-| Found, `Disabled` | **Refused**; re-enabling is a separate, audited action ([system-behavior RA-2](system-behavior.md#72-approved-assumptions-ra-1-to-ra-8)) |
+| Found, `Disabled` | **Refused**; re-enabling is a separate, audited action ([system-behavior RA-2](system-behavior.md#72-assumptions-ra-1-to-ra-8)) |
 
 - The new StoreMembership carries an **explicitly assigned role for this store**. Memberships in other stores grant nothing here, and are not changed.
 - **Temporary passwords** are **generated** with a cryptographically secure generator (never supplied by the operator), displayed once to the operator **only after the provisioning transaction commits**, are **never logged or persisted** in plaintext, and force a change at first login.
@@ -809,13 +813,15 @@ Three explicit operations — never a free-form "set quantity" field.
 
 **Contain** (discrepancy workflow) takes the counted value `X < committed` and the `onHand` value the admin saw; it is rejected (409) if `onHand` changed meanwhile.
 
-**Idempotency** *(added 2026-10-18; extended to Count and Contain 2026-10-18 — RA-5, approved 2026-10-18)*: **all four** adjustments — Receive, Remove, Count, Contain — require a client-generated **request id** (one per intentional action, reused for retries).
+**Idempotency** *(added 2026-10-18; extended to Count and Contain 2026-10-18 — RA-5; clarified in the second review 2026-10-18, pending approval)*: **all four** adjustments — Receive, Remove, Count, Contain — require a client-generated **request id** (one per intentional action, reused for retries). For Count and Contain the expected-`onHand` comparison is an optimistic-concurrency check, not duplicate detection, which is why they need the request id as well.
 - It is stored on the resulting stock movement together with a **request fingerprint** (hash of operation, variant, quantities, expected `onHand`, reason, note), with a **unique `(storeId, requestId)` constraint**, inserted in the same transaction as the stock change.
 - **Same id, same payload** → the **original result** (the movement's before/after values) is returned; nothing is applied and no second movement is created — even if `onHand` has changed since.
 - **Same id, different payload** → rejected (`422 REQUEST_ID_CONFLICT`).
 - A **rejected** adjustment (stale expected value, shortage, validation error) records nothing, so its request id stays unused and may be retried.
 - **Separate protections:** the request id stops a retry from applying twice; the expected-`onHand` check (Count, Contain) stops a count based on stale data from overwriting newer stock. Neither replaces the other.
-- Processing order and tests: [system-behavior W8](system-behavior.md#w8-inventory-adjustments-and-discrepancies).
+- **Stale read** (Count/Contain): `409` with the current `onHand` and `committed`; nothing written; the admin reloads.
+- **Audit:** every applied adjustment writes exactly one stock movement; replays and rejected attempts change nothing and write no movement.
+- Processing order, conflict responses, tests, and the remaining design choices: [system-behavior W8](system-behavior.md#w8-inventory-adjustments-and-discrepancies).
 
 **When validation fails (Remove or Count below `committed`):**
 - The adjustment is **rejected**; nothing changes.
@@ -1275,7 +1281,7 @@ stateDiagram-v2
 - **Retention:** `Converted` and `Merged` carts are deleted **7 days after `closedAt`**. **Orders never depend on carts**: an order holds its own snapshots and its own idempotency key, so deleting a cart never affects order data.
 - An empty `Active` cart remains `Active`.
 
-**Add-to-cart idempotency** *(added 2026-10-18)*: every add carries a client-generated **request id** (one per intentional add, reused for retries). The pair `(cartId, requestId)` is recorded with a uniqueness constraint in the same transaction as the change. A repeat returns the **current cart** without incrementing again; two intentional adds with different ids both apply; the same id with a different payload is rejected. Set quantity and remove are naturally repeatable. Details in [system-behavior §5.3](system-behavior.md#53-business-operation-idempotency).
+**Add-to-cart idempotency** *(added 2026-10-18; contract clarified in the RA-4 second review)*: every add carries a client-generated **request id** — a **new** id per intentional add, the **same** id for every transport retry or duplicate submission of that add. The pair `(cartId, requestId)` and its payload are recorded with a uniqueness constraint in the **same transaction** as the increment; **this record is what guarantees idempotency** — the response shape does not. A repeat finds the record, does not increment again, and returns the **current cart**; two intentional adds with different ids both apply; the same id with a different payload is rejected; a rejected original records nothing. Records live as long as their cart and are carried over to the target cart on merge (pending approval). Set quantity and remove are naturally repeatable. Full contract: [system-behavior §5.3.1](system-behavior.md#531-add-to-cart-contract-ra-4--clarified-2026-10-18).
 
 ### 6.5 Store scoping
 
@@ -1352,6 +1358,8 @@ All money values are integer minor units with a currency.
 
 - **Login never fails because of a merge.** The merge runs in its own transaction after login succeeds. If it fails, the guest cart is left intact and the merge is **retried** on the customer's next cart request. Merging is idempotent.
 - Both carts are locked during the merge, so concurrent logins cannot merge twice.
+- **Suspension:** a merge is a cart write and is prohibited while the store is suspended. Login still succeeds; the merge is skipped and retried once the store is `Active` (synchronized with status changes — RA-6, pending approval).
+- **Add-request records** of the guest cart are carried over to the target cart in the merge transaction, so a retried add that was applied before the merge is not applied twice (RA-4 clarification, pending approval).
 
 **Steps**
 1. Guest cart absent, `Merged`, or `Converted` → nothing to do.
@@ -1445,7 +1453,7 @@ Constraints: unique `Active` cart per (store, customer); unique `guestTokenHash`
 | Operation | Notes |
 |---|---|
 | `GET /api/cart` | Current cart + quote; creates nothing |
-| `POST /api/cart/lines` | Add variant + quantity + **request id** (creates the cart and guest cookie if needed; idempotent per request id). **Response contract:** always the **current** cart and quote. A replayed request (same request id, same payload) returns the current cart — which may include changes made after the original add — not a stored copy of the original response; same request id with a different payload → `422`. *(RA-4 — approved 2026-10-18)* |
+| `POST /api/cart/lines` | Add variant + quantity + **request id** (creates the cart and guest cookie if needed; idempotent per request id). **Response contract:** always the **current** cart and quote. A replayed request (same request id, same payload) does **not** increment again — guaranteed by the server-side request record, not by the response — and returns the current cart, which may include changes made after the original add, not a stored copy of the original response; same request id with a different payload → `422`. Retry, duplicate, and concurrency rules: [system-behavior §5.3.1](system-behavior.md#531-add-to-cart-contract-ra-4--clarified-2026-10-18). *(RA-4 — approved 2026-10-18; clarified in the second review)* |
 | `PATCH /api/cart/lines/:variantId` | Set quantity |
 | `DELETE /api/cart/lines/:variantId` | Remove line |
 | `POST /api/cart/lines/:variantId/adjust-to-available` | 6.6.1 |

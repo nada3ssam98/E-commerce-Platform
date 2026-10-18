@@ -31,6 +31,7 @@
 4. [RA-1 to RA-8 — approved 2026-10-18](#4-ra-1-to-ra-8--approved-2026-10-18)
 5. [Architecture-review items R1–R4](#5-architecture-review-items-r1r4)
 6. [Unresolved decisions](#6-unresolved-decisions)
+7. [RA-1 to RA-8 — second review 2026-10-18](#7-ra-1-to-ra-8--second-review-2026-10-18) *(RA-5 and RA-6 pending approval)*
 
 ---
 
@@ -155,7 +156,7 @@
 
 ## 4. RA-1 to RA-8 — approved 2026-10-18
 
-The current wording is in [system-behavior §7.2](system-behavior.md#72-approved-assumptions-ra-1-to-ra-8). The table records what changed. **All eight approved on 2026-10-18.**
+The current wording is in [system-behavior §7.2](system-behavior.md#72-assumptions-ra-1-to-ra-8). The table records what changed. **All eight approved on 2026-10-18.**
 
 | # | Previous wording (summary) | Change applied | Status |
 |---|---|---|---|
@@ -198,3 +199,24 @@ Recorded in [system-behavior §7.3](system-behavior.md#73-review-decisions-and-o
 | — | RA-6 interpretation vs. D8 | Narrow interpretation; D8 preserved (§4) | Approved 2026-10-18 |
 | — | ADR-10 MediaAsset renditions | Applied to domain-model §3.2 after ADR-10 approval | Approved 2026-10-18 |
 | — | **ADR-04 revision 4** | Separate credentials and network binding | **Approved 2026-10-18** — gate G1 closed |
+
+## 7. RA-1 to RA-8 — second review 2026-10-18
+
+The product owner re-reviewed RA-1–RA-8 before final approval of Phase 3. Each row lists the review decision, the change applied, and the resulting status. **Phase 3 is not marked approved** by this change; RA-5 and RA-6 (and the two clarifications marked *pending*) await review.
+
+| # | Review decision | Change applied | Sections | Status |
+|---|---|---|---|---|
+| RA-1 | Approved with clarification | Operator identifier is a **declared** identity — not authenticated proof, not a replacement for authentication or authorization; no operator accounts. Audit records operation, timestamp, **outcome** (`Succeeded` / `Refused` / `Failed`, with reason code) and actor; refusals recorded separately (mechanism P4-2) | system-behavior W1, §7.2, §7.4; domain-model §1.14; requirements §22 item 15 | Approved with clarification |
+| RA-2 | Approved | Unchanged in substance; re-enabling stated as a separate, explicit, audited command; refusal recorded | system-behavior W1 | Approved |
+| RA-3 | Approved | Redirect and cache behavior stated as deterministic (depend only on store default locale and path); locale redirects not cacheable as permanent (status/headers P4-4) | system-behavior §4.3; requirements §6 | Approved with clarification |
+| RA-4 | Approved with clarification | Add-to-cart contract (system-behavior §5.3.1): idempotency comes from the server-side `(cartId, requestId)` record, not from returning the current cart; client obligations for intentional adds, transport retries, duplicate submissions; concurrent duplicates; payload conflicts; rejected originals; replay signalling deferred (P4-3). **New clarification:** add-request records carried over to the target cart on merge | system-behavior §5.3, §5.3.1, W3; domain-model §6.4, §6.7, §6.11 | Approved with clarification; **merge carry-over pending** |
+| RA-5 | Changes required | Request ids for Count/Contain kept and **justified** (expected `onHand` is an optimistic-concurrency check, not duplicate detection); conflict-response table (replay, payload conflict, concurrent duplicates, stale read `409` with current values, shortage `409`, validation `422`); audit behavior (one movement per applied adjustment, none for replays or rejections); remaining choices deferred (P4-5 fingerprint and concurrency token, P4-6 audit of rejections) | system-behavior §5.3, W8, §7.4; domain-model §4.4; requirements §8.5 | **Revised — pending approval** |
+| RA-6 | Changes required | **Withdrawn:** the wording that accepted millisecond races for cart writes, registrations, and catalog/settings writes. **Now:** no prohibited operation may commit after a suspension commits; placement, item-edit apply, and customer/guest cancellation keep shared organization/store locks; all other prohibited writes (cart writes incl. merge, registrations, staff catalog/media/settings/branding writes) are synchronized too, mechanism P4-1, without serializing non-conflicting operations; merge skipped while suspended and retried after reactivation; staff status check re-evaluated in the transaction. **D8 preserved** unchanged | system-behavior §2 (INV-12), §5.1, W3, W4, W11, §7.2; domain-model §1.6, §6.7; requirements §22 item 16 | **Revised — pending approval** |
+| RA-7 | Approved with clarification | Cache-key components table: store identity (trusted host → exactly one store), locale, path, allow-listed query, any other response-affecting context; rule that a public response varies only on these; per-host entries; no cross-store serving | system-behavior §4.4; requirements §6 | Approved with clarification |
+| RA-8 | Approved with clarification | PostgreSQL stated as **selected** (ADR-02), not open; detailed concurrency design listed as deferred items P4-1–P4-7 | system-behavior §5.1, §7.2, §7.4 | Approved with clarification |
+
+**Consistency notes**
+- **D8** (permitted operations while suspended) is unchanged; RA-6 only tightens enforcement for operations that were **already** prohibited (domain-model §1.6 table).
+- **ADR-02** lists shared locks for placement only; the approved RA-6 extension (item-edit apply, customer/guest cancellation) and this revision (P4-1) are not yet reflected there. ADR-02 is **not edited** in this change; it is a follow-up for the architecture phase.
+- **ADR-04** cache-key wording (normalized host + path + allow-listed query) is consistent with the clarified components: the trusted host is the store identity at the edge, and the path carries the locale.
+- The backend direction is unchanged (.NET / ASP.NET Core, ADR-01); no backend technology is introduced.
