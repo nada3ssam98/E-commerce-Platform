@@ -1,0 +1,9 @@
+{
+  "name": "e-commerce-platform",
+  "private": true,
+  "description": "White-label multi-tenant e-commerce platform (toolchain baseline; application code arrives in later M0 steps).",
+  "engines": {
+    "node": "24.15.0",
+    "npm": "11.12.1"
+  }
+}
