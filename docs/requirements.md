@@ -9,7 +9,7 @@
 
 > **How to use this document.** This is the single source of truth for all later phases. If a design or implementation decision contradicts this document, either the decision is wrong or this document must be updated first — with a new entry in the [Decision log](#28-decision-log).
 >
-> **v1.9 (approved 2026-10-18):** the architecture-review changes are recorded in the [change record](proposed-doc-changes.md) and the [decision log](#28-decision-log). One dependency remains under review: the trusted-host **design** in [ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) (revision 4, pending review). The requirement itself (Section 22 item 17) is approved.
+> **v1.9 (approved 2026-10-18):** the architecture-review changes are recorded in the [change record](proposed-doc-changes.md) and the [decision log](#28-decision-log). The trusted-host **design** for Section 22 item 17 is [ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) revision 4, approved 2026-10-18.
 >
 > Items marked **[DEFAULT]** were accepted as defaults and can be changed cheaply. Everything else is approved. Remaining assumptions are listed in [Section 25](#25-assumptions).
 >
@@ -815,7 +815,7 @@ Admin screens are designed after the domain model is approved.
 14. **CSRF protection** for all cookie-authenticated requests (Section 22.1).
 15. **Platform-operator audit:** sensitive operator actions (provisioning, activation, suspension, staff identity and membership changes, staff password resets) are recorded as append-only **PlatformAuditEvents** with actor, action, target, timestamp, and non-sensitive context. Audit records never contain credentials, secrets, or tokens ([domain-model §1.14](domain-model.md#114-platformauditevent)).
 16. **Locking:** operations that suspension must block **and** that commit stock or payment effects — order placement, order item-edit apply, and customer/guest cancellation — take **shared** locks on the organization and store rows; store/organization status changes take **exclusive** locks. All other operations use narrower locks in a fixed global order ([system-behavior §5](system-behavior.md#5-concurrency-locking-and-idempotency)). **Decision D8 is preserved:** fulfillment of existing orders and the staff operations D8 permits remain available while suspended, subject to permissions, workflow rules, stock invariants, and audit logging. *(Revised in v1.9 — RA-6, approved 2026-10-18 with this narrow interpretation.)*
-17. **Trusted host:** the store is identified only from the host received by the trusted edge; client-supplied forwarded-host headers are never trusted. Edge-to-SSR, edge-to-API, and SSR-to-API credentials are separate, and the SSR server's credential is limited to public read endpoints. *(Requirement approved 2026-10-18; design in [ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) revision 4 — pending review.)*
+17. **Trusted host:** the store is identified only from the host received by the trusted edge; client-supplied forwarded-host headers are never trusted. Edge-to-SSR, edge-to-API, and SSR-to-API credentials are separate, and the SSR server's credential is limited to public read endpoints. *(Requirement approved 2026-10-18; design in [ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) revision 4 — approved 2026-10-18.)*
 
 ### 22.1 CSRF protection
 Guest cart sessions, customer sessions, and staff sessions all use cookies, which the browser attaches automatically — so every state-changing request must prove it came from our own app.
@@ -1027,6 +1027,7 @@ No open question blocks Phase 2.
 | 2026-10-18 | U-1–U-4 and U-6 approved as recommended (internal note for attempts; error log + email alerts; `Retry-After` 3600 s; 1–500-character note; tax/invoice review before launch) | Approved 2026-10-18 |
 | 2026-10-18 | M1-D1–M1-D5 approved as proposed | Approved 2026-10-18 |
 | 2026-10-18 | Architecture revision 3 approved **except ADR-04**; ADR-12 deferred | Approved 2026-10-18 |
-| 2026-10-18 | Store identified only via the trusted edge host, with separate edge-to-SSR, edge-to-API, and SSR-to-API credentials (R1) | Requirement approved; **ADR-04 revision 4 pending review** |
+| 2026-10-18 | Store identified only via the trusted edge host, with separate edge-to-SSR, edge-to-API, and SSR-to-API credentials (R1) | Requirement approved; ADR-04 revision 4 approved 2026-10-18 (see next entry) |
+| 2026-10-18 | **ADR-04 revision 4 approved** — §4a–4g, tests TH-1–TH-14; commit `849fe35`, merged to `main` in `c9edca5` | Approved 2026-10-18 |
 | 2026-10-18 | U-5 (production edge capability) | **Open** — resolve before the first shared environment |
 | 2026-10-18 | **Requirements v1.9 approved** | Approved 2026-10-18 |

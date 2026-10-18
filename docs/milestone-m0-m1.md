@@ -4,11 +4,11 @@
 |---|---|
 | **Status** | **Scope approved** (2026-10-18; M1-D1–M1-D5 approved) · **implementation blocked** until the gates in §1 are met |
 | **Last updated** | 2026-10-18 (review decisions recorded; ADR-04 revision 4) |
-| **Depends on** | [architecture-decisions.md](architecture-decisions.md) — ADR-01–03, 05, 11, X approved; **ADR-04 revision 4 pending review** — and requirements v1.9 (approved) |
+| **Depends on** | [architecture-decisions.md](architecture-decisions.md) — ADR-01–03, 05, 11, X approved; ADR-04 revision 4 approved 2026-10-18 — and requirements v1.9 (approved) |
 
 > **Goal.** Leave the repository with a working, tested foundation on which every later milestone is built as an end-to-end vertical slice: one codebase, a real database, CI, a **proven trusted-host path**, and **correct, tested tenant resolution** — before any commerce data exists.
 >
-> Tools and versions named here are those of the approved ADRs. Trusted-host items follow ADR-04 **revision 4**, which is pending review; if the review changes it, those items change with it.
+> Tools and versions named here are those of the approved ADRs. Trusted-host items follow ADR-04 **revision 4** (approved 2026-10-18; commit `849fe35`, merge `c9edca5`).
 >
 > **Not in M0/M1:** catalog, media, inventory, cart, checkout, orders, payments, staff login, customer accounts.
 
@@ -20,16 +20,16 @@
 
 | # | Gate | Status |
 |---|---|---|
-| **G1** | **ADR-04 revision 4 reviewed and approved** (separate credentials, network binding, tests TH-1–TH-14) | ❌ Pending review |
-| **G2** | Planning documents consistent (requirements, domain model, system behavior, ADRs, change record, roadmap, this document) | ✅ Reconciled on branch `docs/record-review-decisions` — confirmed when that branch is reviewed and merged |
-| **G3** | **Branch protection on `main`** configured by the repository owner: pull request required, no direct pushes, no force pushes, no deletion. *(Required CI status checks are added in M0, once the workflow exists — M0-17.)* | ❌ Owner action; CI cannot verify it |
+| **G1** | **ADR-04 revision 4 reviewed and approved** (separate credentials, network binding, tests TH-1–TH-14) | ✅ Approved 2026-10-18 — revision 4 as merged to `main` (commit `849fe35`, merge `c9edca5`) |
+| **G2** | Planning documents consistent (requirements, domain model, system behavior, ADRs, change record, roadmap, this document) | ✅ Complete — reconciled and merged to `main` via PR #3 (merge `c9edca5`) |
+| **G3** | **Branch protection on `main`** configured by the repository owner: pull request required (**0 required approvals** — solo-developer project), no direct pushes, no force pushes, no deletion, no bypass. *(Required CI status checks are added in M0, once the workflow exists and its check names are stable — M0-17.)* | ❌ **Not configured** — checked 2026-10-18 via the GitHub API: `main` has `protection.enabled: false`, no active rules, no rulesets. Pending owner action and confirmation. |
 
 **Prerequisites:**
 
 | # | Prerequisite | Status |
 |---|---|---|
 | P1 | ADR-01, 02, 03, 11 and the cross-cutting conventions | ✅ Approved 2026-10-18 |
-| P1a | ADR-04 (trusted-host flow) | ❌ Revision 4 pending review (= G1) |
+| P1a | ADR-04 (trusted-host flow) | ✅ Revision 4 approved 2026-10-18 (= G1) |
 | P2 | ADR-05 **password hashing** part | ✅ Approved 2026-10-18 (library vetted in M1) |
 | P3 | RA-1, RA-2, RA-3 | ✅ Approved 2026-10-18 |
 | P4 | v1.9 items C1 (TTL-only caching) and A4 (generated temporary passwords only) | ✅ Approved 2026-10-18 |
@@ -37,6 +37,22 @@
 | P6 | Node/Angular pair chosen at M0 start from Angular's **official compatibility table** (not Node 26 merely because it is LTS — ADR-11) | Done as the first M0 step; recorded in the M0 pull request |
 
 **Not required before M0/M1:** ADR-06–10 (approved; needed from M2/M3), ADR-12 and **U-5** (open; required before the first shared environment, not for local M0/M1), RA-4–RA-8 (approved; RA-7 is first needed in M4, RA-8 in M5/M7).
+
+### 1a. M0 start checklist (execution order — begins only after G3 is verified)
+
+Each step is one pull request into `main`, reviewed before the next starts. Architecture approval does not mean implementation is complete: every step is "done" only when its acceptance criteria pass in CI (or, for manual criteria, are recorded).
+
+| Step | Work | Acceptance criteria covered | Done when |
+|---|---|---|---|
+| **1. Toolchain verification** | Check the official sources: .NET support policy (.NET 10 LTS), ASP.NET Core 10 (ships with the .NET 10 SDK), Angular's version-compatibility table (Angular major ↔ Node.js ↔ TypeScript), Node.js release schedule. Choose the Node/Angular pair from the Angular table (P6). Record versions and sources in the PR; add `global.json`, `.nvmrc`, `engines`, `.npmrc` (`save-exact=true`), `.gitignore`, `.gitattributes`. | P6 | Pair and sources recorded; pins committed |
+| **2. .NET API skeleton + database baseline** | `.slnx`; `Directory.Build.props` (nullable, warnings as errors, analyzers, `RestorePackagesWithLockFile`); `Directory.Packages.props`; `Api` and `Cli` hosts; empty domain projects with the allowed reference graph; `Infrastructure` with EF Core 10 + Npgsql; initial migration; migration vs. application database roles; Aspire AppHost with PostgreSQL. | M0-11, M0-12 | Migrations apply from zero; architecture test fails on a forbidden reference |
+| **3. Health checks + reproducible installs** | `GET /api/health`, `/api/health/ready`; options validation on start; Problem Details; request id; JSON logging with redaction; default `private, no-store`; committed `packages.lock.json`; `dotnet restore --locked-mode`. | M0-9, M0-10, M0-14 (backend), M0-15 | Tests for each criterion pass locally |
+| **4. Angular workspace** | Angular CLI workspace under `/frontend`: `storefront` with SSR, `admin` client-only, design-system and i18n/formatting libraries, `<html lang dir>` wiring; committed `package-lock.json`; `npm ci`. | M0-3, M0-14 (frontend) | Both apps build; SSR page renders |
+| **5. OpenAPI contracts + drift check** | Build-time `contracts/openapi.json`; `openapi-typescript` 7.13.0 via `npm run contracts:generate` into the `api-contracts` library; one example endpoint typed end to end; drift-check script; shared test-vector location. | M0-13 | Changing an endpoint without regenerating fails the check |
+| **6. CI + trusted-host boundary + safe logging** | GitHub Actions workflow (restore/build/test both stacks, migrations, drift check, bundle scan, secret scan, dependency audit, E2E); Caddy local edge with header deletion and one credential per route; SSR ingress-key check and server-only interceptor with the SSR-to-API key; API trusted-path middleware with credential + source-network classification and SSR allow-list; test-only diagnostics on API and SSR; three keys in local secrets, redacted in logs. Then the owner adds the stable CI check names as required status checks. | M0-2, M0-16, M0-17 | Workflow green on a PR; required checks configured (manual, recorded) |
+| **7. Agreed M0 tests** | Complete and automate the remaining criteria: host-spoofing and credential tests TH-1–TH-14 (local), diagnostics absent in `Production`, configuration fail-fast for both servers, fresh-clone check. | M0-1, M0-4–M0-8d, remaining items | All M0-1–M0-17 met; M0 closed by review |
+
+**Not in M0 (or M1):** catalog, media, inventory, cart, checkout, orders, payments, staff login, customer accounts.
 
 ---
 
@@ -68,7 +84,7 @@ Any business table, authentication, store resolution, styling beyond a placehold
 
 | # | Criterion | How verified |
 |---|---|---|
-| M0-1 | A fresh clone starts the full local stack with the documented commands. | Manual check by a second person following README only |
+| M0-1 | A fresh clone starts the full local stack with the documented commands. | Manual check on a fresh clone in a clean environment (new directory or clean machine/container), following README only — solo-developer project |
 | M0-2 | `https://brand-a.localhost/` renders a server-side page whose initial HTML contains a value fetched from `/api/health` **through the SSR server's internal call**. | Playwright inspecting the initial HTML |
 | M0-3 | `https://admin.localhost/` serves the admin placeholder; `/api/health` is reachable same-origin on both hosts. | Playwright |
 | M0-4 | **TH-1:** a browser request with forged `X-Forwarded-Host`, `Forwarded`, and `X-Platform-Host` headers reaches the API with the **edge-set** `X-Platform-Host`. | E2E through the edge, asserting via the test-only diagnostic |

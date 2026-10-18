@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **ADR-01–03, ADR-05–11 and cross-cutting conventions approved (2026-10-18).** **ADR-04: corrected in revision 4 — pending review, not approved.** ADR-12 deferred. |
+| **Status** | **ADR-01–03, ADR-05–11 and cross-cutting conventions approved (2026-10-18).** **ADR-04 revision 4 approved 2026-10-18** (commit `849fe35`, merged to `main` in `c9edca5`). ADR-12 deferred. *Architecture approval is not implementation: nothing is built yet.* |
 | **Last updated** | 2026-10-18 (revision 4: ADR-04 credential separation; decisions recorded) |
 | **Phase** | 4 — Architecture |
 | **Based on** | [requirements.md](requirements.md) v1.9 (approved 2026-10-18), [domain-model.md](domain-model.md), [system-behavior.md](system-behavior.md) |
@@ -19,7 +19,7 @@
 
 **Review decisions (2026-10-18):** revision 3 approved **except ADR-04**, which was rejected as written because the SSR server received the same edge key the API accepted for all routes.
 
-**Revision 4 (2026-10-18):** ADR-04 corrected — three separate credentials (API edge key, SSR ingress key, SSR-to-API key), credential-to-network binding, tests TH-11–TH-14. **ADR-04 is pending review.** ADR-11's Node/Angular selection rule updated per review.
+**Revision 4 (2026-10-18):** ADR-04 corrected — three separate credentials (API edge key, SSR ingress key, SSR-to-API key), credential-to-network binding, tests TH-11–TH-14. ADR-11's Node/Angular selection rule updated per review.
 
 ---
 
@@ -30,7 +30,7 @@
 | [01](#adr-01-backend-platform-and-application-structure) | Backend platform and application structure | **.NET 10 (LTS), C# 14, ASP.NET Core 10**; Minimal APIs; modular monolith with one project per domain | **Approved** 2026-10-18 | M0 |
 | [02](#adr-02-database-and-data-access) | Database and data access | **PostgreSQL**; **EF Core 10 + Npgsql**, with explicit SQL for locks and idempotent inserts; EF Core migrations reviewed as SQL | **Approved** 2026-10-18 | M0 |
 | [03](#adr-03-repository-layout-and-api-contracts) | Repository layout and API contracts | One repo: Angular workspace + .NET solution; **code-first OpenAPI** (built-in) → generated TypeScript contract types for Angular | **Approved** 2026-10-18 | M0 |
-| [04](#adr-04-request-topology-host-resolution-and-public-caching) | Request topology, host trust, public caching | Edge deletes client host and credential headers, sets `X-Platform-Host`, and adds **one credential per route**: API edge key (edge→API), SSR ingress key (edge→SSR); SSR calls the API with a separate **SSR-to-API key** limited to public `GET`s; each credential bound to its source network; the API is the only store resolver | **Revision 4 — pending review** (revision 3 rejected); production capability open (U-5) | M0 (flow) / M1 (resolution) |
+| [04](#adr-04-request-topology-host-resolution-and-public-caching) | Request topology, host trust, public caching | Edge deletes client host and credential headers, sets `X-Platform-Host`, and adds **one credential per route**: API edge key (edge→API), SSR ingress key (edge→SSR); SSR calls the API with a separate **SSR-to-API key** limited to public `GET`s; each credential bound to its source network; the API is the only store resolver | **Revision 4 approved** 2026-10-18 (revision 3 rejected); production capability open (U-5) | M0 (flow) / M1 (resolution) |
 | [05](#adr-05-authentication-sessions-and-csrf) | Authentication, sessions, CSRF | **Custom session authentication handler** (PostgreSQL sessions, token hash); **no ASP.NET Core Identity**; permission-based authorization policies; **ASP.NET Core Antiforgery** bound to the session; `Origin` check | **Approved** 2026-10-18 | M2 (hashing: M1) |
 | [06](#adr-06-rate-limiting) | Rate limiting | Built-in rate-limiting middleware for per-IP limits + PostgreSQL counters for identifier lockouts | **Approved** 2026-10-18 | M2 |
 | [07](#adr-07-background-jobs-and-the-outbox) | Background jobs and outbox | .NET **Worker Service**; outbox dispatcher as a `BackgroundService` using `SKIP LOCKED`; **Quartz.NET** (PostgreSQL job store, clustered) for schedules; operator alerts via error log + email (U-2) | **Approved** 2026-10-18 | M2 |
@@ -212,7 +212,7 @@
 
 **Constraints:** system-behavior §4.4 — only the host received by the **trusted edge** identifies the store; client forwarded-host headers are ignored; cached responses never set cookies; cache key = normalized host + path + allow-listed query; unknown hosts return an uncached platform 404. Requirements §24 — same-origin `/api`; SSR storefront; client-only admin on its own host.
 
-*(Revision 4, 2026-10-18 — **corrected after review; pending review, not approved.** Revision 3 forwarded one edge key to both the SSR server and the API, which gave the SSR server a credential that the API accepted for any route. Revision 4 separates the credentials and binds each to a network path.)*
+*(Revision 4, 2026-10-18 — **corrected after review; approved 2026-10-18 (introduced in `849fe35`, on `main` via merge `c9edca5`).** Revision 3 forwarded one edge key to both the SSR server and the API, which gave the SSR server a credential that the API accepted for any route. Revision 4 separates the credentials and binds each to a network path.)*
 
 ### 4a. Trust zones, network paths, and topology
 
@@ -605,7 +605,7 @@ Inputs: wildcard TLS for `*.<platform-domain>`, region latency to Egypt, **OQ2 d
 | ADR-01 | Approved: .NET 10 LTS, C# 14, ASP.NET Core 10, Minimal APIs, modular monolith with one project per domain |
 | ADR-02 | Approved: PostgreSQL; EF Core 10 + Npgsql with explicit SQL for locks and idempotent inserts |
 | ADR-03 | Approved: code-first OpenAPI; openapi-typescript 7.13.0; CI drift check |
-| **ADR-04** | **Not approved as written (revision 3).** Mandatory correction: separate the edge-to-SSR credential from the edge-to-API credential; keep the SSR-to-API credential scoped to allow-listed public `GET` endpoints; enforce trusted network paths; test that the SSR server cannot use the API edge credential for privileged routes. **Revision 4 applies the correction — pending review.** |
+| **ADR-04** | **Not approved as written (revision 3).** Mandatory correction: separate the edge-to-SSR credential from the edge-to-API credential; keep the SSR-to-API credential scoped to allow-listed public `GET` endpoints; enforce trusted network paths; test that the SSR server cannot use the API edge credential for privileged routes. **Revision 4 applies the correction.** |
 | ADR-05 | Approved: custom session handler, no ASP.NET Core Identity; Argon2id after library vetting, bcrypt fallback |
 | ADR-06–09 | Approved as recommended |
 | ADR-10 | Approved: NetVips; MediaAsset renditions added to the domain model |
@@ -615,6 +615,11 @@ Inputs: wildcard TLS for `*.<platform-domain>`, region latency to Egypt, **OQ2 d
 | U-2 operator alerts | Approved: error log + email to a configured operator address |
 | U-5 production edge capability | **Open** until hosting is selected; resolve before the first shared environment |
 
-**Still requested**
-1. **Review ADR-04 revision 4** (§4a–4g, tests TH-1–TH-14). Implementation does not start until it is approved.
-2. **Resolve U-5** together with ADR-12, before the first shared environment.
+**Review of revision 4 — 2026-10-18**
+
+| Item | Decision |
+|---|---|
+| **ADR-04 revision 4** | **Approved** — §4a–4g and tests TH-1–TH-14 as merged to `main` (commit `849fe35`, merge `c9edca5`) |
+
+**Still open**
+1. **U-5** — resolve together with ADR-12, before the first shared environment.

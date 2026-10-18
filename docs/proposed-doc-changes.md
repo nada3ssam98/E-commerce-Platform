@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **Reviewed 2026-10-18.** All items approved **except R1**: ADR-04 was rejected as written and is corrected in revision 4, **pending review**. U-5 remains open. |
+| **Status** | **Reviewed 2026-10-18.** All items approved. R1: ADR-04 was rejected as written (revision 3) and its correction, **revision 4, was approved 2026-10-18** (commit `849fe35`, merge `c9edca5`). U-5 remains open. |
 | **Last updated** | 2026-10-18 |
 | **Affects** | [requirements.md](requirements.md) (v1.8 → **v1.9, approved**), [domain-model.md](domain-model.md), [system-behavior.md](system-behavior.md), [architecture-decisions.md](architecture-decisions.md), [milestone-m0-m1.md](milestone-m0-m1.md), [roadmap.md](roadmap.md) |
 
@@ -14,7 +14,7 @@
 |---|---|
 | Architecture revision 3 | Approved **except ADR-04** (mandatory correction — see R1) |
 | Requirements v1.9; C1–C4, A1–A5, D1–D2, R2–R4 | **Approved** |
-| R1 / ADR-04 | **Not approved as written.** The SSR server received the same edge key the API accepted for all routes. Correction applied in ADR-04 **revision 4** — **pending review** |
+| R1 / ADR-04 | **Not approved as written.** The SSR server received the same edge key the API accepted for all routes. Correction applied in ADR-04 **revision 4** — **approved 2026-10-18** (commit `849fe35`, merge `c9edca5`) |
 | RA-1–RA-8 | **Approved**; RA-6 interpreted **narrowly** — D8 preserved (see §4) |
 | U-1–U-4, U-6 | **Approved** as recommended |
 | U-5 | **Open** until production hosting/edge capability is verified; resolve before the first shared environment |
@@ -71,7 +71,7 @@
 | requirements.md | "v1.8 — Approved"; Phase 1 complete; Next phase 2 | "**v1.9 — Approved** (2026-10-18)"; Current phase 4 |
 | domain-model.md | "In progress — Phase 2"; based on v1.8 | "Approved — core domains, including the architecture-review revisions"; based on v1.9 |
 | system-behavior.md | "Final draft — pending approval"; based on v1.8 | "All review items approved (2026-10-18)"; open: U-5 and ADR-04 revision 4; formal Phase 3 sign-off after the ADR-04 review; based on v1.9 |
-| architecture-decisions.md | Based on v1.8 | Based on v1.9; revision 4 (ADR-04 pending review; others approved) |
+| architecture-decisions.md | Based on v1.8 | Based on v1.9; revision 4 (all ADRs approved except ADR-12, deferred) |
 
 **Review adjustment:** labels changed only after the edits were applied and the decisions recorded. **Status:** approved 2026-10-18.
 
@@ -176,7 +176,7 @@ The current wording is in [system-behavior §7.2](system-behavior.md#72-approved
 
 | # | Item | Applied | Sections | Status |
 |---|---|---|---|---|
-| R1 | **Trusted host flow** (blocker) | Revision 3 (one edge key forwarded to both SSR and API) **rejected**. Revision 4: three separate credentials — API edge key (edge → API only), SSR ingress key (edge → SSR only; rejected by the API), SSR-to-API key (allow-listed public `GET`s only); each bound to its source network; tests TH-1–TH-14; production edge capability open (U-5) | ADR-04; requirements §22 item 17; domain-model §1.8; system-behavior §4.4, W2; milestone M0-4–M0-8d, M1-4 | Requirement approved; **ADR-04 revision 4 pending review** |
+| R1 | **Trusted host flow** (blocker) | Revision 3 (one edge key forwarded to both SSR and API) **rejected**. Revision 4: three separate credentials — API edge key (edge → API only), SSR ingress key (edge → SSR only; rejected by the API), SSR-to-API key (allow-listed public `GET`s only); each bound to its source network; tests TH-1–TH-14; production edge capability open (U-5) | ADR-04; requirements §22 item 17; domain-model §1.8; system-behavior §4.4, W2; milestone M0-4–M0-8d, M1-4 | Approved 2026-10-18 (revision 4) |
 | R2 | **Order lifecycle** | Failed attempt = no status change (order stays `Shipped`), recorded as an internal note (U-1); `DeliveryFailed` terminal, no retry; stock released only by cancellation, deducted at `Shipped`, restored only by return recording | requirements §11.1, §26; domain-model §7.3, §7.4, §7.7, §7.14; system-behavior W6 | Approved 2026-10-18 |
 | R3 | **Suspended-store caching** | Suspended `503`: `no-store` + `Retry-After` (fixes an internal contradiction in system-behavior §4.2, which listed it as cacheable while also stating 5xx are never cached); responses default to `private, no-store` unless explicitly public | system-behavior §4.2, §4.5, W2, W11; domain-model §1.6; requirements §23; milestone M0-15, M1-7 | Approved 2026-10-18 |
 | R4 | **Inventory idempotency tests** | Processing order (lock → request-id lookup → validation → apply) and integration tests IN-1–IN-9 | system-behavior W8; domain-model §4.4, §4.10 | Approved 2026-10-18 |
@@ -197,4 +197,4 @@ Recorded in [system-behavior §7.3](system-behavior.md#73-review-decisions-and-o
 | U-6 | Tax and invoicing obligations (OQ3) | Commercial-launch gate; no tax calculation in the MVP | Approved 2026-10-18 (gate) |
 | — | RA-6 interpretation vs. D8 | Narrow interpretation; D8 preserved (§4) | Approved 2026-10-18 |
 | — | ADR-10 MediaAsset renditions | Applied to domain-model §3.2 after ADR-10 approval | Approved 2026-10-18 |
-| — | **ADR-04 revision 4** | Separate credentials and network binding | **Pending review** — implementation gate G1 |
+| — | **ADR-04 revision 4** | Separate credentials and network binding | **Approved 2026-10-18** — gate G1 closed |

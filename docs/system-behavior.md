@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **All review items approved (2026-10-18):** RA-1–RA-8, R1–R4, U-1–U-4, U-6. **Still open:** U-5 (production edge capability) and the trusted-host design in ADR-04 revision 4 (pending review). Formal Phase 3 sign-off to be confirmed after the ADR-04 review. |
+| **Status** | **All review items approved (2026-10-18):** RA-1–RA-8, R1–R4, U-1–U-4, U-6. ADR-04 revision 4 (trusted-host design) approved 2026-10-18. **Still open:** U-5 (production edge capability). A formal sign-off of this document as a whole has not been explicitly recorded. |
 | **Last updated** | 2026-10-18 |
 | **Phase** | 3 — Cross-domain relationships and end-to-end workflows |
 | **Based on** | [requirements.md](requirements.md) v1.9 (approved 2026-10-18), [domain-model.md](domain-model.md) (approved) |
@@ -174,7 +174,7 @@ Reconciliation **never replaces** transactional guards: every workflow enforces 
 1. **Cache key = normalized host + path + allow-listed query parameters.** The host identifies the store and the path's first segment identifies the locale, so **every entry is isolated by store and locale**. Only parameters that change content (e.g., `page`, `sort`, `q`) are part of the key; others (e.g., `utm_*`, `fbclid`) are ignored. No other request header varies content. [RA-7] *Timing:* the allow-list is configured on the shared cache (introduced with hosting) and first matters for catalog pages (M4). Until then, public responses must **not depend on query parameters** — the rule M1 tests.
 2. **Public cached responses never set cookies.** Guest cart cookies, session cookies, and pre-session CSRF tokens are issued only by non-cached endpoints. *(Otherwise one visitor's cookie could be cached and served to everyone.)*
 3. **Public HTML is identical for every visitor** of the same store and locale. User-specific parts (mini-cart count, "Hello, Name", account menu) are rendered **in the browser** from non-cached API calls.
-4. **Only the host as received by the trusted edge** is used for store resolution; forwarded-host headers from clients are ignored (prevents cache poisoning and store spoofing). The full flow — edge, SSR, API, separate route-specific credentials, network paths, and tests — is defined in [architecture ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) (revision 4, pending review).
+4. **Only the host as received by the trusted edge** is used for store resolution; forwarded-host headers from clients are ignored (prevents cache poisoning and store spoofing). The full flow — edge, SSR, API, separate route-specific credentials, network paths, and tests — is defined in [architecture ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) (revision 4, approved 2026-10-18).
 5. **Unknown hosts** return a platform 404 that is not cached and contains no store data.
 
 ### 4.5 Invalidation (approved)
@@ -327,7 +327,7 @@ Each workflow follows the same structure: **Trigger and preconditions → Steps 
 **Trigger:** any HTTP request to a store host — an SSR page or a storefront API call.
 
 **Steps**
-1. Take the host **only** from the trusted edge (`X-Platform-Host`, accepted only together with a valid API edge key from an edge address, or a valid SSR-to-API key from an SSR address on an allow-listed public `GET` — [ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) revision 4, pending review) and normalize it (lowercase, no port, no trailing dot).
+1. Take the host **only** from the trusted edge (`X-Platform-Host`, accepted only together with a valid API edge key from an edge address, or a valid SSR-to-API key from an SSR address on an allow-listed public `GET` — [ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) revision 4, approved 2026-10-18) and normalize it (lowercase, no port, no trailing dot).
 2. Resolve host → store (cache ≤ 60 s, then `StoreDomain`). **Unknown host → platform 404** (`no-store`); never a fallback store.
 3. Compute the **effective status** (store and organization).
 

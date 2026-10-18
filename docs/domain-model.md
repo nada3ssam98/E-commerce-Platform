@@ -6,7 +6,7 @@
 | **Last updated** | 2026-10-18 |
 | **Based on** | [requirements.md](requirements.md) v1.9 (approved 2026-10-18) · Cross-domain behavior: [system-behavior.md](system-behavior.md) |
 
-> **Revisions.** Sections marked *(revised/clarified 2026-10-18 — approved 2026-10-18)* contain changes from the architecture review; the replaced text is recorded in the [change record](proposed-doc-changes.md). The trusted-host **design** referenced in §1.8 is in [ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) revision 4, which is pending review.
+> **Revisions.** Sections marked *(revised/clarified 2026-10-18 — approved 2026-10-18)* contain changes from the architecture review; the replaced text is recorded in the [change record](proposed-doc-changes.md). The trusted-host **design** referenced in §1.8 is in [ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) revision 4, approved 2026-10-18.
 
 > **How to use this document.** Each domain is analyzed separately and marked **Approved** or **Draft**. Approved domains are the basis for Phase 3 (relationships and workflows) and Phase 4 (architecture).
 >
@@ -309,7 +309,7 @@ Three separate layers answer three separate questions:
 2. **Unknown host → platform 404 page. There is never a fallback to a default store.**
 3. Resolve the effective status and apply 1.6.
 4. Resolution results are cached per host for **at most 60 seconds**; business operations never use this cache ([system-behavior §4.5](system-behavior.md#45-invalidation-approved)). *(Revised 2026-10-18 — approved 2026-10-18.)*
-5. The host comes **only** from the trusted edge (`X-Platform-Host`, accepted only with a valid route-specific credential over the expected network path — design in [architecture ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) revision 4, pending review); client-supplied forwarded-host headers are never used.
+5. The host comes **only** from the trusted edge (`X-Platform-Host`, accepted only with a valid route-specific credential over the expected network path — design in [architecture ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) revision 4, approved 2026-10-18); client-supplied forwarded-host headers are never used.
 
 **Admin**
 1. The store comes from the route (`/stores/:storeId/...`).
