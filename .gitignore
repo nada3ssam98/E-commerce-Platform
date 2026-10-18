@@ -1,0 +1,42 @@
+# --- Secrets and local configuration (requirements §18.3: no credentials in source control) ---
+.env
+.env.*
+!.env.example
+*.local.json
+*.pfx
+*.p12
+*.key
+*.pem
+
+# --- .NET ---
+bin/
+obj/
+[Tt]est[Rr]esults/
+*.user
+*.rsuser
+*.suo
+.vs/
+*.binlog
+
+# --- Node.js / Angular ---
+node_modules/
+dist/
+out-tsc/
+.angular/
+coverage/
+npm-debug.log*
+
+# --- Playwright ---
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# --- Editors and operating systems ---
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
+*.log
