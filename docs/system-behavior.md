@@ -2,16 +2,16 @@
 
 | | |
 |---|---|
-| **Status** | **Final draft — pending approval** |
+| **Status** | **Final draft — pending approval** (architecture-review revisions applied 2026-10-18) |
 | **Last updated** | 2026-10-18 |
 | **Phase** | 3 — Cross-domain relationships and end-to-end workflows |
-| **Based on** | [requirements.md](requirements.md) v1.8, [domain-model.md](domain-model.md) (all core domains approved) |
+| **Based on** | [requirements.md](requirements.md) v1.9 draft (last approved: v1.8), [domain-model.md](domain-model.md) (core domains approved; revisions pending) |
 
 > **How to read this document.** Phase 2 described each domain in isolation. This document describes **how the domains work together**: which depends on which, which rules span several domains, and what happens — step by step, transaction by transaction — in every important workflow.
 >
 > It is documentation only. Endpoint names and fields refer to the contracts in the domain model; nothing here prescribes code structure (Phase 4).
 >
-> All earlier open decisions are resolved; the [decision record](#7-decision-record) lists them, together with the **remaining assumptions** (marked **[RA-n]** in the text) that still need confirmation.
+> Earlier open decisions are resolved; the [decision record](#7-decision-record) lists them, together with the **remaining assumptions** (marked **[RA-n]** in the text, all pending approval) and the **unresolved decisions** (§7.3).
 
 ---
 
@@ -106,7 +106,7 @@ Reconciliation **never replaces** transactional guards: every workflow enforces 
 | INV-9 | **Access:** admin requests need a valid session, membership, and permission; customer sessions match the store | Store, Customer | Per request | — |
 | INV-10 | **Audit completeness:** every stock change has a movement; every order change has an event | Inventory, Ordering | Same transaction | — |
 | INV-11 | **Media retention:** media referenced by order lines is never deleted | Media, Ordering | Cleanup job condition | — |
-| INV-12 | **New business only while `Active`:** carts, orders, registrations | Store, Cart, Ordering, Customer | Checked inside the transaction | — |
+| INV-12 | **New business only while `Active`:** carts, orders, registrations, order item edits, customer/guest cancellation | Store, Cart, Ordering, Customer | Checked inside the transaction against the current database status; placement, item-edit apply, and customer/guest cancellation additionally hold shared organization/store locks (§5.1) | — |
 | INV-13 | **Content completeness:** non-archived products and categories have required default-locale content | Store, Catalog | Default-locale change blocked while content is missing | — |
 
 ---
@@ -155,8 +155,10 @@ Reconciliation **never replaces** transactional guards: every workflow enforces 
 | Media files | ✅ Long TTL | URLs are immutable per asset |
 | Cart, checkout, account, order lookup, order access link, auth endpoints | ❌ | `Cache-Control: private, no-store` |
 | All admin pages and APIs | ❌ | `Cache-Control: private, no-store` |
-| Error responses (404 for unknown hosts, 5xx) | ❌ | Not cached |
-| "Coming soon" and "temporarily unavailable" pages | ✅ TTL ≤ 60 s | Same keying rules |
+| Error responses (404 for unknown hosts, 5xx) | ❌ | `Cache-Control: no-store` |
+| "Coming soon" page (`Setup`, HTTP 200, `noindex`) | ✅ TTL ≤ 60 s | `public, max-age=0, s-maxage=60`; same keying rules |
+| **"Temporarily unavailable" page (`Suspended`, HTTP 503)** | ❌ | `Cache-Control: no-store` and `Retry-After: 3600` *[DEFAULT]*. A 5xx is never cached, so a stored suspension page can never outlive a reactivation (only the backend's ≤ 60 s resolution cache bounds the delay — §4.5). *(Revised 2026-10-18 — previously listed as cacheable, which contradicted the 5xx rule above; pending approval.)* |
+| Any response not explicitly marked public | ❌ | `private, no-store` by default — an endpoint is publicly cacheable only if it opts in |
 
 ### 4.3 Locale in URLs (approved)
 
@@ -169,10 +171,10 @@ Reconciliation **never replaces** transactional guards: every workflow enforces 
 
 ### 4.4 Safety rules
 
-1. **Cache key = normalized host + path + allow-listed query parameters.** The host identifies the store and the path's first segment identifies the locale, so **every entry is isolated by store and locale**. Only parameters that change content (e.g., `page`, `sort`, `q`) are part of the key; others (e.g., `utm_*`, `fbclid`) are ignored. No other request header varies content. [RA-7]
+1. **Cache key = normalized host + path + allow-listed query parameters.** The host identifies the store and the path's first segment identifies the locale, so **every entry is isolated by store and locale**. Only parameters that change content (e.g., `page`, `sort`, `q`) are part of the key; others (e.g., `utm_*`, `fbclid`) are ignored. No other request header varies content. [RA-7] *Timing:* the allow-list is configured on the shared cache (introduced with hosting) and first matters for catalog pages (M4). Until then, public responses must **not depend on query parameters** — the rule M1 tests.
 2. **Public cached responses never set cookies.** Guest cart cookies, session cookies, and pre-session CSRF tokens are issued only by non-cached endpoints. *(Otherwise one visitor's cookie could be cached and served to everyone.)*
 3. **Public HTML is identical for every visitor** of the same store and locale. User-specific parts (mini-cart count, "Hello, Name", account menu) are rendered **in the browser** from non-cached API calls.
-4. **Only the host as received by the trusted edge** is used for store resolution; forwarded-host headers from clients are ignored (prevents cache poisoning).
+4. **Only the host as received by the trusted edge** is used for store resolution; forwarded-host headers from clients are ignored (prevents cache poisoning and store spoofing). The full flow — edge, SSR, API, keys, and tests — is defined in [architecture ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) (proposed).
 5. **Unknown hosts** return a platform 404 that is not cached and contains no store data.
 
 ### 4.5 Invalidation (approved)
@@ -183,9 +185,10 @@ Reconciliation **never replaces** transactional guards: every workflow enforces 
 |---|---|
 | Price, stock, publication, content, image | ≤ 60 s |
 | Store settings, branding, locales, support contacts | ≤ 60 s |
-| Store suspension / reactivation | ≤ 60 s (transactions are blocked **immediately** by the backend, regardless of cache) |
+| Store suspension | Catalog pages switch to the `503` page within ≤ 60 s (cached catalog pages expire); the `503` page itself is never cached. Transactions are blocked **immediately**. |
+| Store reactivation | Catalog pages return within ≤ 60 s (bounded only by the backend's resolution cache; the `503` page itself is never cached); new business resumes immediately on the backend |
 
-The backend's own **in-process cache of store resolution** (host → store, effective status) also expires within 60 s. All transactional checks read current data from the database, never from a cache.
+The backend's own **in-process cache of store resolution** (host → store, effective status) also expires within 60 s and is used **only for rendering decisions**. **Every business operation** — cart writes, registration, placement, item edits, customer cancellation, catalog and settings writes — reads the **current** store and organization status from the database inside its transaction, never from a cache. Suspended stores therefore cannot accept new orders or perform prohibited writes, whatever any cache says.
 
 ---
 
@@ -202,9 +205,10 @@ Principle: **the narrowest lock that protects a specific invariant.** No operati
 | | Inventory levels of the cart's variants | Exclusive (conditional update), ascending variant id | INV-2 |
 | **Store activation / suspension / reactivation** | Store row | **Exclusive** | INV-12 |
 | **Organization suspension / reactivation** | Organization row | **Exclusive** | INV-12 for all its stores |
-| Order transition, item edit, delivery edit, payment action, return | The order (version check) | Exclusive | One concurrent change wins; INV-3, INV-5 |
+| **Item-edit apply; customer/guest cancellation** *(added 2026-10-18 — RA-6, pending approval)* | Organization row, then store row | **Shared** | INV-12 — no item edit or customer cancellation commits after a suspension commits (both are forbidden while suspended and change stock and payment) |
+| Order transition, item edit, delivery edit, payment action, return, cancellation | The order (version check) | Exclusive | One concurrent change wins; INV-3, INV-5 |
 | | Inventory levels touched | Exclusive, ascending variant id | INV-2 |
-| Inventory adjustment | That inventory level | Exclusive | INV-2 |
+| Inventory adjustment (Receive, Remove, Count, Contain) | That inventory level | Exclusive | INV-2; serializes same-variant retries before the request-id lookup (W8) |
 | Cart write | The cart | Exclusive | INV-6; line consistency |
 | Cart merge | Both carts, ascending cart id | Exclusive | A guest cart merges once |
 | Reset-token use | Conditional update on the token | — | Single use |
@@ -212,10 +216,19 @@ Principle: **the narrowest lock that protects a specific invariant.** No operati
 
 **Why shared locks for placement:** shared locks do **not** block each other, so concurrent placements in the same store run in parallel. They wait only while an operator's status change holds the exclusive lock — a rare, operator-initiated event.
 
-**Deliberately not locked against store status** [RA-6]:
-- **Cart writes and registrations** read the store status without a lock. One slipping in at the exact moment of a suspension creates no order or financial commitment.
-- **Staff actions** are authorized per request; an action that races a suspension by milliseconds is accepted.
-- **Catalog reads, quotes, and storefront reads** take no locks at all.
+**Which operations synchronize with suspension** [RA-6, revised 2026-10-18 — pending approval]:
+
+| Operation | Allowed while suspended? | Synchronized with suspension? | Why |
+|---|---|---|---|
+| Order placement | ❌ | **Yes** — shared lock | Creates an order, commits stock, creates a payment |
+| Order item-edit apply | ❌ | **Yes** — shared lock | Changes committed stock and the payment amount |
+| Customer/guest cancellation | ❌ | **Yes** — shared lock | Releases stock and voids payment |
+| Cart writes, registrations | ❌ | No — status read without a lock | One slipping in at the exact moment of a suspension creates no order, stock commitment, or payment |
+| Catalog and settings writes (staff) | ❌ | No — authorized per request | No stock or payment effect; a millisecond race is accepted |
+| Fulfillment transitions, staff cancellation, mark as paid, payment correction, return recording, delivery edits, stock adjustments | ✅ | Not needed | Allowed in both states (domain-model §1.6, decision D8) |
+| Catalog reads, quotes, storefront reads | ✅ / read-only | No locks at all | — |
+
+Every operation in the first five rows still **reads the current status from the database inside its transaction**; the lock only closes the millisecond race for operations with stock or payment effects.
 
 The exact database lock primitives are validated in Phase 4 against the chosen database. [RA-8]
 
@@ -231,8 +244,7 @@ Every operation acquires locks in this order, which prevents deadlocks:
 |---|---|---|
 | Order placement | Idempotency key, unique per `(storeId, key)`; cart `Converted` | Returns the original order (guests: an additional access token) |
 | **Add to cart** | **Request id**, unique per `(cartId, requestId)` | Returns the current cart; quantity **not** incremented again |
-| **Inventory Receive / Remove** | **Request id**, unique per `(storeId, requestId)`, stored on the stock movement | Returns the **original result** (the movement's before/after values) |
-| Inventory Count / Contain | Expected `onHand` check | Second attempt rejected as stale [RA-5] |
+| **Inventory Receive / Remove / Count / Contain** | **Request id**, unique per `(storeId, requestId)`, stored with a request fingerprint on the stock movement. Count and Contain **additionally** check the expected `onHand` (a separate protection against stale data). [RA-5, revised — pending approval] | Returns the **original result** (the movement's before/after values), even if `onHand` changed since; no second movement |
 | Order transitions, payment actions, return recording | Compare-and-set + order version | Second attempt rejected as stale; UI shows the current state |
 | Item edit (apply) | Order version + preview fingerprint | Rejected as stale |
 | Cart merge | Guest cart already `Merged` | No-op |
@@ -243,6 +255,7 @@ Every operation acquires locks in this order, which prevents deadlocks:
 - Generated by the client (UUID) **per intentional action** and reused for retries of that action. Two intentional actions use two ids and both apply.
 - The uniqueness constraint is enforced **in the same transaction** as the operation, so concurrent duplicates wait and then see the first result.
 - The **same id with a different payload** (e.g., another variant or quantity) is rejected with `422`.
+- A request id is bound to a payload only once an operation **succeeds**; a rejected operation records nothing, so its id may be reused.
 
 ### 5.4 Notification delivery is separate from business idempotency
 
@@ -269,13 +282,13 @@ Each workflow follows the same structure: **Trigger and preconditions → Steps 
 ### W1 Store provisioning and activation
 
 **Trigger and preconditions**
-- The platform operator runs the **provisioning script** with: operator identifier [RA-1], organization name, store handle, brand name, default locale, supported locales, flat shipping fee, free-shipping threshold (optional), support phone, initial admin email and name.
+- The platform operator runs the **provisioning script** with: operator identifier [RA-1 — a self-declared audit label, not verified identity], organization name, store handle, brand name, default locale, supported locales, flat shipping fee, free-shipping threshold (optional), support phone, initial admin email and name.
 - Handle valid and unique; host name unique; locales valid.
 
 **Steps — provisioning**
 1. Validate all inputs.
 2. Look up the admin email among staff users:
-   - **Not found** → a new StaffUser and StaffPasswordCredential will be created with a random temporary password and `mustChangePassword`.
+   - **Not found** → a new StaffUser and StaffPasswordCredential will be created with a temporary password **generated by a cryptographically secure generator** (never operator-supplied) and `mustChangePassword`.
    - **Found and `Active`** → the **existing identity is reused**: no new identity, **no credential change, no new temporary password**.
    - **Found and `Disabled`** → provisioning is **refused**; re-enabling an identity is a separate, deliberate operator action. [RA-2]
 3. In **one transaction**, create: Organization (`Active`); Store (`Setup`); StoreDomain (`<handle>.<platform-domain>`, primary); StoreSettings (EGP, prices include tax, Africa/Cairo, low-stock threshold 5, given shipping and contacts); StoreBranding (platform defaults — Phase 5); display name (default locale, prefilled from the brand name); OrderNumberSequence (next value 1001); the staff identity per step 2 (new only); StoreMembership with an **explicitly assigned role** for this store (`StoreAdmin`); PlatformAuditEvents (`StoreProvisioned`, and `StaffUserCreated` or `StaffMembershipGranted`).
@@ -302,7 +315,7 @@ Each workflow follows the same structure: **Trigger and preconditions → Steps 
 | Validation or uniqueness error | Nothing created; fix input and re-run |
 | Existing staff user is `Disabled` | Refused; nothing created |
 | Crash before commit | Rolled back; no password was shown; re-run |
-| Console output lost after commit (new identity) | Operator issues a new temporary password with the staff reset script (audited `StaffPasswordReset`) |
+| Console output lost after commit (new identity) | Operator runs the **staff password reset command** (separate from provisioning): new generated temporary password shown once, `mustChangePassword` set, all of the user's sessions revoked, audited `StaffPasswordReset` |
 | Activation precondition missing | Activation refused with the list of missing items |
 
 **Invariants:** INV-1, INV-9, INV-13.
@@ -314,14 +327,14 @@ Each workflow follows the same structure: **Trigger and preconditions → Steps 
 **Trigger:** any HTTP request to a store host — an SSR page or a storefront API call.
 
 **Steps**
-1. Normalize the host (lowercase, no port).
-2. Resolve host → store (cache ≤ 60 s, then `StoreDomain`). **Unknown host → platform 404**; never a fallback store.
+1. Take the host **only** from the trusted edge (`X-Platform-Host`, accepted together with a valid edge or SSR key — [ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching), proposed) and normalize it (lowercase, no port, no trailing dot).
+2. Resolve host → store (cache ≤ 60 s, then `StoreDomain`). **Unknown host → platform 404** (`no-store`); never a fallback store.
 3. Compute the **effective status** (store and organization).
 
    | Status | Behavior |
    |---|---|
-   | `Setup` | "Coming soon" page, `noindex` |
-   | `Suspended` | Catalog routes → branded 503 with `Retry-After` and support contacts; account, order history, order lookup remain available read-only |
+   | `Setup` | "Coming soon" page, HTTP 200, `noindex`, `public, max-age=0, s-maxage=60` |
+   | `Suspended` | Catalog routes → branded **503** with `Retry-After: 3600` *[DEFAULT]*, `Cache-Control: no-store`, and support contacts; account, order history, order lookup remain available read-only |
    | `Active` | Continue |
 4. Resolve the locale from the URL's first path segment (Section 4.3); an unsupported or missing locale redirects to the default locale.
 5. For catalog content, the **read layer** combines published Catalog data, resolved translations, effective prices, and stock **states** computed from Inventory.
@@ -541,10 +554,11 @@ sequenceDiagram
 | Confirm | → `Confirmed`, `confirmedAt` | — | — | `StatusChanged` | — |
 | Process | → `Processing`, `processingAt` | — | — | `StatusChanged` | — |
 | Ship | → `Shipped`, `shippedAt`, courier details | `deductShipped` | — | `StatusChanged` | — |
+| Failed delivery attempt *(no transition)* | Stays `Shipped`; eligible for further attempts | — | — | Internal note, if staff record one (`NoteAdded`; see OQ4) | — |
 | Deliver | → `Delivered`, `deliveredAt` | — | — | `StatusChanged` | — |
 | Mark as paid | — | — | → `Paid`, `collectedAt`, `recordedAt/By`; order copy | `PaymentMarkedPaid` | — |
 | Cancel | → `Cancelled`, reason, actor | `release` all lines | → `Voided`; order copy | `Cancelled`, `PaymentVoided` | — |
-| Delivery failed | → `DeliveryFailed`, reason | — | → `Voided`; order copy | `StatusChanged`, `PaymentVoided` | — |
+| Delivery failed | → `DeliveryFailed` (**terminal**; no retry), reason | — (goods with courier) | → `Voided`; order copy | `StatusChanged`, `PaymentVoided` | — |
 | Record return | `returnRecordedAt`; line return quantities | `restock(restockedQty)` | — | `ReturnRecorded` | — |
 | Payment correction | — | — | Revert to `Pending` or change `collectedAt`; order copy | `PaymentCorrected` | — |
 | Courier-detail correction | Courier fields | — | — | `ShippingDetailsUpdated` | — |
@@ -556,7 +570,8 @@ Each row is one transaction and one future test case covering all five columns.
 
 | Action | Additional precondition |
 |---|---|
-| Customer / guest cancel | Order `Pending`; store `Active`; guest link valid (≤ 7 days, order `Pending`) |
+| Customer / guest cancel | Order `Pending`; store `Active` — checked under **shared** organization/store locks (§5.1); guest link valid (≤ 7 days, order `Pending`); reason from the customer list, note required for "other" |
+| Staff cancel, delivery failed | Reason from the staff / delivery-failure list; note required for "other" |
 | Mark as paid | Order `Delivered`; payment `Pending`; `deliveryDate ≤ collectedAt ≤ today` (store timezone) |
 | Payment correction | Payment `Paid`; `orders.correctPayment`; **password re-entered**; reason |
 | Record return | Order `DeliveryFailed`; not recorded yet; `0 ≤ restockedQty ≤ quantity` per line |
@@ -572,7 +587,9 @@ Each row is one transaction and one future test case covering all five columns.
 
 **Failures and recovery:** any failed precondition → nothing written; the response explains why. A crash mid-transaction rolls back; the action can be retried.
 
-**Invariants:** INV-2, INV-3, INV-5, INV-9, INV-10. **Reconciled:** INV-2, INV-3.
+**Stock across fulfillment** *(clarified 2026-10-18 — pending approval)*: committed stock is released only by cancellation (before `Shipped`); `Shipped` reduces `onHand` and `committed`; failed attempts and `DeliveryFailed` change nothing; stock is restored only by **Record return**, per line, for the restocked units.
+
+**Invariants:** INV-2, INV-3, INV-5, INV-9, INV-10, INV-12 (customer cancellation). **Reconciled:** INV-2, INV-3.
 
 ---
 
@@ -585,10 +602,10 @@ Each row is one transaction and one future test case covering all five columns.
 **Steps — preview (no writes)**
 1. Staff submit the proposed changes (quantities, swaps, additions, removals) with the order version.
 2. The backend validates: ≥1 line remains; limits (1–10, ≤ 50 lines); swapped/added variants are same-store and purchasable; **no swap to a variant already in the order**; sufficient stock for **increases only** (`available ≥ difference`).
-3. It computes new lines (untouched and quantity-changed lines keep snapshot prices; swapped/added lines use current prices and names), shipping with the **snapshotted rule**, tax, grand total, and a **preview fingerprint**.
+3. It computes new lines (untouched and quantity-changed lines keep snapshot prices; swapped/added lines use current prices and names), shipping with the **snapshotted rule**, grand total, and a **preview fingerprint**. (No tax amount — prices include tax; requirements §14.)
 
 **Steps — apply (one transaction)**
-1. Lock the order; check version, status, payment status, store status.
+1. Take **shared** locks on the organization and store rows and check the store is `Active` (§5.1, RA-6); lock the order; check version, status, payment status.
 2. **Recompute** the preview; compare with the submitted preview fingerprint → mismatch: rollback, `409` with a new preview.
 3. Inventory: `release` decreases/removals and `commit` increases/additions, in variant-id order (conditional).
 4. Update lines (new snapshots for swapped/added lines), totals, `Payment.amount`.
@@ -605,7 +622,7 @@ Each row is one transaction and one future test case covering all five columns.
 
 **Idempotency and concurrency:** the version check makes a repeated apply fail safely (the UI reloads and shows the already-applied change). Two staff editing simultaneously: one wins.
 
-**Failures:** version/fingerprint mismatch → new preview; insufficient stock → line-level error; store suspended → `403` (permission filtered). Nothing is written on failure.
+**Failures:** version/fingerprint mismatch → new preview; insufficient stock → line-level error; store suspended → `403` (permission filtered) or, if the suspension commits during the request, `409 STORE_NOT_ACTIVE` from the in-transaction check. Nothing is written on failure.
 
 #### Delivery-detail edit
 
@@ -623,23 +640,46 @@ Each row is one transaction and one future test case covering all five columns.
 
 ### W8 Inventory adjustments and discrepancies
 
-**Preconditions (all):** `inventory.adjust`; variant belongs to the store; quantities are whole numbers; reason rules (domain-model §4.4). **Receive and Remove** also require a client-generated **request id**.
+**Preconditions (all):** `inventory.adjust`; variant belongs to the store; quantities are whole numbers; reason rules (domain-model §4.4); a client-generated **request id** for **every** adjustment (Receive, Remove, Count, Contain — RA-5, revised, pending approval). Count and Contain also carry the **expected `onHand`** the admin saw.
 
-| Operation | Transaction | Concurrency | Failure |
+| Operation | Effect (after the idempotency step below) | Concurrency | Failure |
 |---|---|---|---|
-| **Receive (+N)** | Record request id (unique per store) → conditional `onHand += N` (result ≤ 1,000,000) → `Received` movement (before/after, reason, staff, request id) | Delta: safe with concurrent operations | Limit exceeded → 422 |
-| **Remove (−N)** | Record request id → conditional `onHand −= N` **only if** `onHand − N ≥ committed` → `Removed` movement | Delta, conditional | Below `committed` → **409 shortage report** |
-| **Count (set X)** | `onHand = X` **only if** `onHand` still equals the value the admin saw **and** `X ≥ committed`; `Counted` movement with counted value; clears an open discrepancy marker | Expected-value check | Changed meanwhile → 409 reload; below `committed` → **409 shortage report** |
-| **Contain discrepancy** | `onHand = committed`; marker (counted value, time, staff); `DiscrepancyContained` movement | Expected-value check | Counted value not below `committed` → 422 |
+| **Receive (+N)** | Conditional `onHand += N` (result ≤ 1,000,000) → `Received` movement (before/after, reason, staff, request id, fingerprint) | **Delta**: safe with concurrent operations | Limit exceeded → 422 |
+| **Remove (−N)** | Conditional `onHand −= N` **only if** `onHand − N ≥ committed` → `Removed` movement | **Delta**, conditional | Below `committed` → **409 shortage report** |
+| **Count (set X)** | `onHand = X` **only if** `onHand` still equals the expected value **and** `X ≥ committed`; `Counted` movement with counted value; clears an open discrepancy marker | **Absolute**: expected-`onHand` check | Changed meanwhile → 409 reload; below `committed` → **409 shortage report** |
+| **Contain discrepancy** | `onHand = committed` **only if** `onHand` still equals the expected value; marker (counted value, time, staff); `DiscrepancyContained` movement | Expected-`onHand` check | Changed meanwhile → 409 reload; counted value not below `committed` → 422 |
+
+**Processing order inside the transaction (all four operations)**
+1. Lock the variant's inventory level (`FOR UPDATE`). Concurrent requests for the same variant — including retries — are serialized here.
+2. Look up a stock movement with `(storeId, requestId)`:
+   - found, **same fingerprint** → return the original before/after values; **stop** (nothing applied, no movement written, no expected-value check — so a retry after a lost response succeeds even if stock has changed since);
+   - found, **different fingerprint** → `422 REQUEST_ID_CONFLICT`; stop.
+3. Validate: expected `onHand` (Count, Contain); `onHand < committed` never allowed (Remove, Count); limits.
+4. Apply the change and insert the movement with request id and fingerprint. A unique-constraint violation on `(storeId, requestId)` here (same id used concurrently for a *different* variant) → rollback, `422 REQUEST_ID_CONFLICT`.
+5. Commit.
 
 **Shortage report (409):** variant, `onHand`, `committed`, requested result, shortage, and **affected open orders** (number, status, quantity, placement date) — produced by the read layer.
 
 **Discrepancy workflow:** detect (409) → optionally contain → resolve through order edits (W7) or cancellations (W6), each releasing `committed` → submit the Count again → marker cleared.
 
-**Idempotency (approved)**
-- **Receive / Remove:** the request id is stored on the stock movement with a **uniqueness constraint `(storeId, requestId)`**, inserted in the **same transaction** as the stock change. A repeat with the same id returns the **original result** (the existing movement's before/after values) without applying anything; concurrent duplicates wait on the constraint, then receive the first result. Same id, different payload → `422`.
-- A **rejected** Remove (shortage) records nothing; the same request id may be retried after the shortage is resolved.
-- **Count / Contain** are protected by the expected-`onHand` check; a repeat is rejected as stale. [RA-5]
+**Idempotency** *(Receive/Remove approved; extension to Count/Contain revised 2026-10-18 — RA-5, pending approval)*
+- **All four operations:** the request id and a request fingerprint are stored on the stock movement with a **uniqueness constraint `(storeId, requestId)`**, inserted in the **same transaction** as the stock change. Same id + same payload → **original result**, no duplicate movement. Same id + different payload → `422`.
+- A **rejected** operation (shortage, stale expected value, validation) records nothing; the request id stays unused.
+- **Separate protections:** the request id prevents double application of a retried request; the expected-`onHand` check prevents a count based on stale data from overwriting newer stock. Neither replaces the other.
+
+**Required integration tests (real PostgreSQL — M5 gate)**
+
+| # | Scenario | Expected |
+|---|---|---|
+| IN-1 | Receive, Remove, Count, Contain each retried with the same request id and payload | Original result returned; exactly one movement; stock changed once |
+| IN-2 | Count retried with the same id **after** an order commit changed `onHand` | Original result returned (not 409) |
+| IN-3 | Same request id, different payload (quantity, variant, expected value, reason) | `422 REQUEST_ID_CONFLICT`; nothing changed |
+| IN-4 | Same request id sent concurrently (same variant; and different variants) | One applies; the other returns the first result (same payload) or `422` (different payload) |
+| IN-5 | Count with a stale expected `onHand` | `409`; nothing written; request id remains unused |
+| IN-6 | Remove or Count below `committed` | `409` shortage report with affected open orders; nothing written |
+| IN-7 | Concurrent Receive + order commit + Remove on one variant | Final `onHand`/`committed` equal the sum of applied deltas; one movement per change |
+| IN-8 | Random sequences of adjustments and order operations (property-based) | `0 ≤ committed ≤ onHand` always; `committed` = Σ open-order quantities (INV-2); every change has a movement (INV-10) |
+| IN-9 | Request id from store A replayed in store B | Treated as a new request in store B (scope is per store); no data from store A returned |
 
 **Effects:** inventory only; no payment or order-total effects.
 
@@ -733,9 +773,9 @@ The exclusive lock waits for in-flight placements holding shared locks to finish
 
 | Area | Immediately | Within ≤ 60 s |
 |---|---|---|
-| Order placement, cart writes, registrations | **Blocked** (checked in each transaction; placement serialized by the store-row lock) | — |
+| Order placement, cart writes, registrations, order item edits, customer/guest cancellation | **Blocked** (checked against the current database status in each transaction; placement, item-edit apply, and customer cancellation serialized by the store-row lock) | — |
 | Admin permissions | Filtered on the next request (§1.7 of the domain model) | — |
-| Public catalog pages | — | Branded "temporarily unavailable" (503) |
+| Public catalog pages | — | Branded "temporarily unavailable" (503, `no-store`, `Retry-After`) as cached catalog pages expire |
 | Open orders | Fulfillment continues; item edits blocked | — |
 | Carts | Kept; normal expiry continues | — |
 | Customer sessions | Kept; read-only order access | — |
@@ -744,7 +784,7 @@ The exclusive lock waits for in-flight placements holding shared locks to finish
 
 **Concurrency:** a placement in flight either commits before the suspension (valid order, must be fulfilled) or fails with `STORE_NOT_ACTIVE`.
 
-**Reactivation:** reverse; new business resumes immediately on the backend, public pages within ≤ 60 s.
+**Reactivation:** reverse; new business resumes immediately on the backend; catalog pages return within ≤ 60 s (the `503` page is never cached; only the backend's resolution cache bounds the delay).
 
 **Invariants:** INV-12.
 
@@ -785,21 +825,34 @@ All jobs are **idempotent** (safe to re-run), process in batches, and **re-check
 | A-1 | Viewing the cart does not extend its expiry; exact rules documented | W3 |
 | A-2 | **Revised:** add-to-cart is idempotent per client request id on the server; UI disabling is an extra safeguard only | 5.3, W3 |
 | A-3 | Notifications are at-least-once via a transactional outbox; retries never repeat business operations | 5.4, W12 |
-| A-4 | **Narrowed:** shared locks on organization and store rows for placement; exclusive for status changes; no other operation locks the store row; global lock order | 5.1, 5.2 |
+| A-4 | **Narrowed:** shared locks on organization and store rows for placement; exclusive for status changes; global lock order. *Revision pending approval (RA-6, 2026-10-18): item-edit apply and customer/guest cancellation also take the shared locks.* | 5.1, 5.2 |
 | A-5 | Temporary password shown once after commit, never logged or persisted; forced change on first login; never generated for a reused identity | W1 |
 
-### 7.2 Remaining assumptions — need confirmation
+### 7.2 Remaining assumptions — pending approval
 
-| # | Assumption | Why it is needed | Where |
+All eight are **pending approval**; the wording below includes the architecture-review revisions of 2026-10-18 (previous wording: [proposed-doc-changes.md §4](proposed-doc-changes.md#4-ra-1-to-ra-8--revised-text-pending-approval)).
+
+| # | Assumption | Why it is needed | Where | Status |
+|---|---|---|---|---|
+| **RA-1** | **Operator identity:** there are no operator accounts in the MVP. Operator scripts require an operator identifier (argument or environment), recorded as the actor of each PlatformAuditEvent. The identifier is a **self-declared audit label, not verified proof of identity**; accountability depends on restricting who can run operator commands. | Audit events need an actor | W1, W11; domain-model §1.14 | Pending approval |
+| **RA-2** | **Disabled staff identity during provisioning:** provisioning is refused; re-enabling the identity is a separate, audited operator action. | Reusing a disabled identity would silently re-grant access | W1; domain-model §1.15 | Pending approval |
+| **RA-3** | **Single-locale stores also use the locale prefix**, and `/` redirects to the store's default locale **without** using `Accept-Language`. | Uniform routing; deterministic, cacheable redirects | 4.3; requirements §6 | Pending approval |
+| **RA-4** | **Replayed add-to-cart returns the current cart**, not a stored copy of the original response; this is part of the API contract of `POST /api/cart/lines`. Add-request records live as long as their cart. | The cart may have changed since; nothing extra to store | 5.3, W3; domain-model §6.4, §6.11 | Pending approval |
+| **RA-5** | *(Revised.)* **Count and Contain require a request id**, like Receive and Remove, scoped per `(storeId, requestId)`; a replay with the same payload returns the original result without a second movement; a different payload is rejected. The expected-`onHand` check remains as a separate protection. | Retries after lost responses must not double-apply or fail spuriously; the expected-value check alone cannot distinguish a retry from a stale request | 5.3, W8; domain-model §4.4; requirements §8.5 | Pending approval |
+| **RA-6** | *(Revised.)* **Operations forbidden while suspended that change stock or payment** — order placement, item-edit apply, customer/guest cancellation — synchronize with suspension through shared organization/store locks. **Cart writes, registrations, and catalog/settings writes** are not locked; one racing a suspension by milliseconds is accepted, since none creates an order or changes stock or payment. Operations allowed while suspended (fulfillment, payment recording, returns, stock adjustments) need no synchronization. All business operations check the current database status. | Keeps the store row out of hot paths while closing races that would change stock or money | 5.1; requirements §22 item 16 | Pending approval |
+| **RA-7** | **Cache keys use an allow-list of query parameters** (`page`, `sort`, `q`, …); tracking parameters are ignored. Configured with the shared cache; first needed for catalog pages (M4). **Not an M1 prerequisite** — M1 only requires that public responses do not depend on query parameters. | Fewer cache variants; resists cache poisoning | 4.4 | Pending approval |
+| **RA-8** | **Database lock primitives** (shared/exclusive row locks, conditional updates, `ON CONFLICT`) are those of **PostgreSQL** ([ADR-02](architecture-decisions.md#adr-02-database-and-data-access), proposed), and every concurrency guarantee is verified by integration tests against **real PostgreSQL** — never an in-memory provider or SQLite. | Behavior here relies on specific database semantics | 5.1; requirements §11.4 | Pending approval (depends on ADR-02) |
+
+### 7.3 Unresolved decisions
+
+| # | Decision | Recommendation | Needed by |
 |---|---|---|---|
-| **RA-1** | **Operator identity:** there are no operator accounts in the MVP. Operator scripts require an operator identifier (argument or environment), recorded as the actor of each PlatformAuditEvent. | Audit events need an actor | W1, W11 |
-| **RA-2** | **Disabled staff identity during provisioning:** provisioning is refused; re-enabling the identity is a separate, audited operator action. | Reusing a disabled identity would silently re-grant access | W1 |
-| **RA-3** | **Single-locale stores also use the locale prefix**, and `/` redirects to the default locale **without** using `Accept-Language`. | Uniform routing; deterministic, cacheable redirects | 4.3 |
-| **RA-4** | **Replayed add-to-cart returns the current cart**, not a stored copy of the original response. Add-request records live as long as their cart. | The cart may have changed since; nothing extra to store | 5.3, W3 |
-| **RA-5** | **Count and Contain do not require a request id**: the expected-`onHand` check already rejects repeats. | Avoids an unnecessary extra mechanism | 5.3, W8 |
-| **RA-6** | **Cart writes, registrations, and staff actions are not locked against store-status changes**; one racing a suspension by milliseconds is accepted, since none creates an order. | Keeps the store row out of hot paths | 5.1 |
-| **RA-7** | **Cache keys use an allow-list of query parameters** (`page`, `sort`, `q`, …); tracking parameters are ignored. | Fewer cache variants; resists cache poisoning | 4.4 |
-| **RA-8** | **Database lock primitives** (shared/exclusive row locks, conditional updates) are confirmed in Phase 4 against the chosen database. | Behavior here is database-independent | 5.1 |
+| U-1 | How staff record a **failed delivery attempt** while the order stays `Shipped` (requirements OQ4) | Use the existing internal note (`NoteAdded`) in the MVP; no new status or event type | M8a |
+| U-2 | **Operator alert channel** for reconciliation mismatches and parked outbox messages | Error-level structured log **and** email to a configured operator address ([ADR-07](architecture-decisions.md#adr-07-background-jobs-and-the-outbox)) | M2 (outbox) |
+| U-3 | `Retry-After` value on the suspended `503` page | 3600 seconds *[DEFAULT]*, configurable | M1 |
+| U-4 | Note length for cancellation/delivery-failure reason "other" | 1–500 characters *[DEFAULT]* | M8a |
+| U-5 | **Production edge capability** for the trusted-host flow (header overwrite, secret origin header, private origins) | Verify with the hosting choice; fallback mutual TLS ([ADR-04 §4f](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching)) | First shared environment (ADR-12) |
+| U-6 | Tax and invoicing obligations (requirements OQ3) | Review before commercial launch; MVP itemizes no tax | Before launch |
 
 ---
 
