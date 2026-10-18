@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| **Status** | **Draft — proposed, not approved** |
-| **Last updated** | 2026-10-18 (revision 2: backend on C# / ASP.NET Core) |
+| **Status** | **ADR-01–03, ADR-05–11 and cross-cutting conventions approved (2026-10-18).** **ADR-04: corrected in revision 4 — pending review, not approved.** ADR-12 deferred. |
+| **Last updated** | 2026-10-18 (revision 4: ADR-04 credential separation; decisions recorded) |
 | **Phase** | 4 — Architecture |
-| **Based on** | [requirements.md](requirements.md) v1.9 draft (last approved: v1.8), [domain-model.md](domain-model.md), [system-behavior.md](system-behavior.md) (final draft, pending approval) |
+| **Based on** | [requirements.md](requirements.md) v1.9 (approved 2026-10-18), [domain-model.md](domain-model.md), [system-behavior.md](system-behavior.md) |
 
-> **How to read this document.** Each decision (ADR) states the constraints it must satisfy from the approved documents, the options considered, a **recommendation**, and its consequences for MVP complexity, operations, security, scalability, and testing. Every ADR is **Proposed** until explicitly approved. Nothing here has been implemented or installed.
+> **How to read this document.** Each decision (ADR) states the constraints it must satisfy from the approved documents, the options considered, a **recommendation**, and its consequences for MVP complexity, operations, security, scalability, and testing. The **Status** column of the summary shows which ADRs are approved; for approved ADRs the recommendation is the decision. Nothing here has been implemented or installed.
 >
 > **Fixed inputs (not reopened):**
 > - Requirements §24: one Angular workspace with `storefront` and `admin`; Angular SSR for public storefront pages; client-only admin; host-based tenant resolution; separate admin host; same-origin `/api`.
@@ -15,27 +15,31 @@
 
 **Revision 2 (2026-10-18):** the first draft recommended Node.js + NestJS. That recommendation is **withdrawn**. ADR-01 is rewritten for .NET, and every ADR that depended on the backend language was revised — see [What changed in revision 2](#what-changed-in-revision-2).
 
-**Revision 3 (2026-10-18, architecture review):** ADR-04 now specifies the complete trusted-host flow (edge, SSR, API, keys, diagnostics, tests TH-1–TH-10); ADR-03 names the exact contract generator and drift check; ADR-11 adds the toolchain baseline and reproducible installs. All ADRs remain **proposed**.
+**Revision 3 (2026-10-18, architecture review):** ADR-04 now specifies the complete trusted-host flow (edge, SSR, API, keys, diagnostics, tests TH-1–TH-10); ADR-03 names the exact contract generator and drift check; ADR-11 adds the toolchain baseline and reproducible installs.
+
+**Review decisions (2026-10-18):** revision 3 approved **except ADR-04**, which was rejected as written because the SSR server received the same edge key the API accepted for all routes.
+
+**Revision 4 (2026-10-18):** ADR-04 corrected — three separate credentials (API edge key, SSR ingress key, SSR-to-API key), credential-to-network binding, tests TH-11–TH-14. **ADR-04 is pending review.** ADR-11's Node/Angular selection rule updated per review.
 
 ---
 
 ## Summary
 
-| ADR | Decision | Recommendation (pending review) | Needed by |
-|---|---|---|---|
-| [01](#adr-01-backend-platform-and-application-structure) | Backend platform and application structure | **.NET 10 (LTS), C# 14, ASP.NET Core 10**; Minimal APIs; modular monolith with one project per domain | M0 |
-| [02](#adr-02-database-and-data-access) | Database and data access | **PostgreSQL**; **EF Core 10 + Npgsql**, with explicit SQL for locks and idempotent inserts; EF Core migrations reviewed as SQL | M0 |
-| [03](#adr-03-repository-layout-and-api-contracts) | Repository layout and API contracts | One repo: Angular workspace + .NET solution; **code-first OpenAPI** (built-in) → generated TypeScript contract types for Angular | M0 |
-| [04](#adr-04-request-topology-host-resolution-and-public-caching) | Request topology, host trust, public caching | Edge deletes client host headers and sets `X-Platform-Host` + an edge key; SSR verifies the edge key and calls the API with a separate SSR key; the API is the only store resolver and ignores every other host source | M0 (flow) / M1 (resolution) |
-| [05](#adr-05-authentication-sessions-and-csrf) | Authentication, sessions, CSRF | **Custom session authentication handler** (PostgreSQL sessions, token hash); **no ASP.NET Core Identity**; permission-based authorization policies; **ASP.NET Core Antiforgery** bound to the session; `Origin` check | M2 (hashing: M1) |
-| [06](#adr-06-rate-limiting) | Rate limiting | Built-in rate-limiting middleware for per-IP limits + PostgreSQL counters for identifier lockouts | M2 |
-| [07](#adr-07-background-jobs-and-the-outbox) | Background jobs and outbox | .NET **Worker Service**; outbox dispatcher as a `BackgroundService` using `SKIP LOCKED`; **Quartz.NET** (PostgreSQL job store, clustered) for schedules | M2 |
-| [08](#adr-08-email) | Email | **MailKit** SMTP for development (**Mailpit**); provider adapter in production (chosen with hosting); templates as Razor components rendered with `HtmlRenderer` | M2 (dev) / first shared env (prod) |
-| [09](#adr-09-media-storage) | Media storage | `IMediaStorage` abstraction; **S3-compatible** default (MinIO locally) or Azure Blob if hosting is Azure; uploads through the backend; separate media host | M3 |
-| [10](#adr-10-image-processing-and-resizing) | Image processing and resizing | **NetVips** (libvips) at upload; ImageSharp only if its license is acceptable | M3 |
-| [11](#adr-11-testing-and-local-development) | Testing and local development | **xUnit v3**, `WebApplicationFactory`, **Testcontainers for .NET** (PostgreSQL), Respawn; architecture tests; Playwright E2E; **Aspire** or Docker Compose locally; GitHub Actions | M0 |
-| [12](#adr-12-hosting-and-deployment-deferred) | Hosting and deployment | **Deferred** — decide before the first shared environment; Azure is now a natural candidate | Before first deploy |
-| [X](#cross-cutting-conventions) | Cross-cutting conventions | Problem Details errors, UUID v4, money, time, options validation, user secrets, redacted logging, OpenTelemetry | M0 |
+| ADR | Decision | Recommendation / decision | Status | Needed by |
+|---|---|---|---|---|
+| [01](#adr-01-backend-platform-and-application-structure) | Backend platform and application structure | **.NET 10 (LTS), C# 14, ASP.NET Core 10**; Minimal APIs; modular monolith with one project per domain | **Approved** 2026-10-18 | M0 |
+| [02](#adr-02-database-and-data-access) | Database and data access | **PostgreSQL**; **EF Core 10 + Npgsql**, with explicit SQL for locks and idempotent inserts; EF Core migrations reviewed as SQL | **Approved** 2026-10-18 | M0 |
+| [03](#adr-03-repository-layout-and-api-contracts) | Repository layout and API contracts | One repo: Angular workspace + .NET solution; **code-first OpenAPI** (built-in) → generated TypeScript contract types for Angular | **Approved** 2026-10-18 | M0 |
+| [04](#adr-04-request-topology-host-resolution-and-public-caching) | Request topology, host trust, public caching | Edge deletes client host and credential headers, sets `X-Platform-Host`, and adds **one credential per route**: API edge key (edge→API), SSR ingress key (edge→SSR); SSR calls the API with a separate **SSR-to-API key** limited to public `GET`s; each credential bound to its source network; the API is the only store resolver | **Revision 4 — pending review** (revision 3 rejected); production capability open (U-5) | M0 (flow) / M1 (resolution) |
+| [05](#adr-05-authentication-sessions-and-csrf) | Authentication, sessions, CSRF | **Custom session authentication handler** (PostgreSQL sessions, token hash); **no ASP.NET Core Identity**; permission-based authorization policies; **ASP.NET Core Antiforgery** bound to the session; `Origin` check | **Approved** 2026-10-18 | M2 (hashing: M1) |
+| [06](#adr-06-rate-limiting) | Rate limiting | Built-in rate-limiting middleware for per-IP limits + PostgreSQL counters for identifier lockouts | **Approved** 2026-10-18 | M2 |
+| [07](#adr-07-background-jobs-and-the-outbox) | Background jobs and outbox | .NET **Worker Service**; outbox dispatcher as a `BackgroundService` using `SKIP LOCKED`; **Quartz.NET** (PostgreSQL job store, clustered) for schedules; operator alerts via error log + email (U-2) | **Approved** 2026-10-18 | M2 |
+| [08](#adr-08-email) | Email | **MailKit** SMTP for development (**Mailpit**); provider adapter in production (chosen with hosting); templates as Razor components rendered with `HtmlRenderer` | **Approved** 2026-10-18 (production provider chosen with ADR-12) | M2 (dev) / first shared env (prod) |
+| [09](#adr-09-media-storage) | Media storage | `IMediaStorage` abstraction; **S3-compatible** default (MinIO locally) or Azure Blob if hosting is Azure; uploads through the backend; separate media host | **Approved** 2026-10-18 | M3 |
+| [10](#adr-10-image-processing-and-resizing) | Image processing and resizing | **NetVips** (libvips) at upload; MediaAsset renditions added to the domain model | **Approved** 2026-10-18 | M3 |
+| [11](#adr-11-testing-and-local-development) | Testing and local development | **xUnit v3**, `WebApplicationFactory`, **Testcontainers for .NET** (PostgreSQL), Respawn; architecture tests; Playwright E2E; **Aspire** locally; GitHub Actions; reproducible toolchain | **Approved** 2026-10-18 | M0 |
+| [12](#adr-12-hosting-and-deployment-deferred) | Hosting and deployment | **Deferred** — decide before the first shared environment; Azure is a natural candidate | Deferred | Before first deploy |
+| [X](#cross-cutting-conventions) | Cross-cutting conventions | Problem Details errors, UUID v4, money, time, options validation, user secrets, redacted logging, OpenTelemetry | **Approved** 2026-10-18 | M0 |
 
 **Concurrency spike assessment:** [still not required](#concurrency-spike-assessment) with PostgreSQL; two EF Core–specific points are covered by M1/M5 integration tests.
 
@@ -58,7 +62,7 @@
 | .NET 11 (STS) | Expected November 2026 (24-month support policy) | Not yet released at the time of writing; no MVP feature requires it. Re-evaluate at M0 if it has shipped. |
 | .NET 8 (LTS) | Ends November 2026 | Rejected — end of support during the MVP. |
 
-**Upgrade policy (proposed):** stay on LTS releases; plan the move to the next LTS (.NET 12, expected November 2027) as a routine task.
+**Upgrade policy:** stay on LTS releases; plan the move to the next LTS (.NET 12, expected November 2027) as a routine task.
 
 ### 1b. API style
 
@@ -137,7 +141,7 @@
 - **Optimistic concurrency:** explicit integer `version` columns configured as concurrency tokens (the domain contracts expose `version` to clients, so PostgreSQL's hidden `xmin` is not used).
 - **Migrations:** EF Core migrations; each migration's generated SQL is reviewed in the pull request, and CI applies migrations from scratch. Production applies **reviewed SQL scripts** (or migration bundles), never `Database.Migrate()` at application startup.
 
-### 2c. Tenant isolation enforcement (proposed)
+### 2c. Tenant isolation enforcement
 
 1. **Explicit `storeId` in every store-scoped command and query** (primary mechanism).
 2. **EF Core global query filters** on store-scoped entities as a safety net, scoped to the resolved store. Platform-wide paths (store resolution, staff login, reconciliation) opt out explicitly and are few and reviewed. *Trade-off:* filters do not apply to raw SQL — the explicit-SQL statements must include `store_id` themselves, enforced by review and tests.
@@ -159,9 +163,9 @@
 
 ## ADR-03 Repository layout and API contracts
 
-**Context:** the mock API is proposed to be dropped (see [proposed-doc-changes.md](proposed-doc-changes.md#d1--drop-the-separate-mock-api-track)). With a C# backend, contract types can no longer be shared as source code with Angular; they must be **generated**.
+**Context:** the separate mock API track is dropped (D1, approved 2026-10-18 — see [proposed-doc-changes.md](proposed-doc-changes.md#d1--drop-the-separate-mock-api-track)). With a C# backend, contract types can no longer be shared as source code with Angular; they must be **generated**.
 
-**Repository layout (proposed)**
+**Repository layout**
 
 ```text
 /frontend        Angular CLI workspace (apps: storefront [SSR], admin; libs: design system, i18n/formatting, api-contracts [generated])
@@ -208,92 +212,110 @@
 
 **Constraints:** system-behavior §4.4 — only the host received by the **trusted edge** identifies the store; client forwarded-host headers are ignored; cached responses never set cookies; cache key = normalized host + path + allow-listed query; unknown hosts return an uncached platform 404. Requirements §24 — same-origin `/api`; SSR storefront; client-only admin on its own host.
 
-*(Revised 2026-10-18 — architecture review: complete trusted-host flow.)*
+*(Revision 4, 2026-10-18 — **corrected after review; pending review, not approved.** Revision 3 forwarded one edge key to both the SSR server and the API, which gave the SSR server a credential that the API accepted for any route. Revision 4 separates the credentials and binds each to a network path.)*
 
-### 4a. Trust zones and topology
+### 4a. Trust zones, network paths, and topology
 
-| Zone | Components | Reachable from |
+| Zone | Components | Accepts connections from |
 |---|---|---|
 | Public | Browsers, bots, attackers | — |
 | **Trusted ingress** | Edge proxy / CDN — the **only** public entry point | Public internet |
-| Private | Angular SSR server (Node), ASP.NET Core API, Worker, PostgreSQL | **Edge and each other only** — no public ingress |
+| Private — SSR | Angular SSR server (Node) | **Edge only** |
+| Private — API | ASP.NET Core API | **Edge and SSR server only** |
+| Private — data | Worker, PostgreSQL | API/Worker only |
 
 ```mermaid
 flowchart LR
   B[Browser] -->|"HTTPS, any headers"| E[Edge proxy / CDN]
-  E -->|"/api/*: X-Platform-Host + edge key"| A[ASP.NET Core API]
-  E -->|"store hosts, pages: X-Platform-Host + edge key"| S[Angular SSR server - Node]
+  E -->|"/api/*: X-Platform-Host + API edge key"| A[ASP.NET Core API]
+  E -->|"store pages: X-Platform-Host + SSR ingress key"| S[Angular SSR server - Node]
   E -->|"admin host: static files"| AD[Admin static bundle]
-  S -->|"GET /api/storefront/*: X-Platform-Host (verified) + SSR key"| A
+  S -->|"allow-listed GET only: X-Platform-Host (verified) + SSR-to-API key"| A
   A --> DB[(PostgreSQL)]
   W[.NET Worker] --> DB
 ```
 
-**Header names** (final names fixed in M0; used below):
+### 4b. Credentials — three separate secrets
 
-| Header | Set by | Meaning |
-|---|---|---|
-| `X-Platform-Host` | Edge (overwritten, never appended) | Normalized public host the edge actually received |
-| `X-Platform-Edge-Key` | Edge | Secret proving the request passed through the edge |
-| `X-Platform-Ssr-Key` | SSR server | Secret proving an internal SSR-originated API call (a **different** secret from the edge key) |
+Header names are fixed in M0; used below:
 
-### 4b. End-to-end rules
+| Credential (header) | Path | Held by | Accepted by | Scope |
+|---|---|---|---|---|
+| **API edge key** (`X-Platform-Api-Edge-Key`) | Edge → API | **Edge only** | API, and only from **edge source addresses** | All API routes, subject to normal authentication and authorization |
+| **SSR ingress key** (`X-Platform-Ssr-Ingress-Key`) | Edge → SSR | Edge, SSR (verify only) | **SSR server only** — the API **rejects** it | Rendering a page; grants nothing at the API |
+| **SSR-to-API key** (`X-Platform-Ssr-Api-Key`) | SSR → API | **SSR only** | API, and only from **SSR source addresses** | **Allow-listed public `GET` storefront endpoints only** |
+
+Plus `X-Platform-Host`: set (overwritten, never appended) by the edge from the host it actually received; forwarded by the SSR server only after verifying the SSR ingress key.
+
+**Least privilege:** each component is configured with **only** the secrets it needs. The SSR server never holds the API edge key; the edge never holds the SSR-to-API key. Each secret is random, stored outside source control, and rotated independently (two active values per credential during rotation).
+
+### 4c. End-to-end rules
 
 **Edge**
-1. **Deletes** every client-supplied host-override header before forwarding: `X-Forwarded-Host`, `Forwarded`, `X-Original-Host`, `X-Host`, and all `X-Platform-*` headers.
+1. **Deletes** every client-supplied host-override and credential header before forwarding: `X-Forwarded-Host`, `Forwarded`, `X-Original-Host`, `X-Host`, and **all** `X-Platform-*` headers (including any client copy of the three keys).
 2. Rejects requests whose `Host` is not a platform host (store wildcard `*.<platform-domain>`, admin host, media host) with a platform 404; never forwards them.
-3. **Sets** `X-Platform-Host` from the received `Host` (lowercase, no port, no trailing dot) and sets `X-Platform-Edge-Key`. Sets its own `X-Forwarded-For` / `X-Forwarded-Proto`.
-4. Routes `/api/*` to the API, other paths on store hosts to the SSR server, the admin host to the admin static bundle.
+3. **Sets** `X-Platform-Host` from the received `Host` (lowercase, no port, no trailing dot) and its own `X-Forwarded-For` / `X-Forwarded-Proto`.
+4. Adds **exactly one** credential per route: `/api/*` → API edge key; store pages → SSR ingress key; admin static files → none. **The API edge key is never sent to the SSR server.**
 
 **Angular SSR server**
-5. Verifies `X-Platform-Edge-Key` (constant-time comparison) in the Node server entry point **before** Angular renders; missing or wrong key → `403`, nothing rendered, security log entry.
+5. Accepts connections from the edge network only, and verifies the **SSR ingress key** (constant-time comparison) in the Node server entry point **before** Angular renders; missing or wrong key → `403`, nothing rendered, security log entry.
 6. Takes the public host **only** from the verified `X-Platform-Host` — never from `Host`, `X-Forwarded-Host`, or the request URL. Angular's own host validation (Angular 22 rejects `Host` headers not listed in its allowed hosts) is configured for the platform hosts as an additional check.
-7. A **server-only** HTTP interceptor (registered only in the server application config, never in the browser bundle) rewrites relative `/api/...` calls to the private `INTERNAL_API_BASE_URL`, adds `X-Platform-Host` (the verified value from rule 6) and `X-Platform-Ssr-Key`, and forwards **no** browser cookies or `Authorization` headers.
-8. The SSR key and internal URL come from server environment variables only. A CI check fails if either appears in any browser bundle.
+7. A **server-only** HTTP interceptor (registered only in the server application config, never in the browser bundle) rewrites relative `/api/...` calls to the private `INTERNAL_API_BASE_URL`, adds `X-Platform-Host` (the verified value from rule 6) and the **SSR-to-API key**, sends only `GET` requests, and forwards **no** browser cookies, `Authorization` headers, or incoming `X-Platform-*` credentials.
+8. The SSR ingress key, SSR-to-API key, and internal URL come from server environment variables only. A CI check fails if any appears in a browser bundle.
 
 **API**
-9. A **trusted-path middleware** runs first in the pipeline. A request must carry a valid `X-Platform-Edge-Key` **or** a valid `X-Platform-Ssr-Key` (constant-time comparison; two active keys per caller supported during rotation). Otherwise → `403` with no store data and a security log entry. Secrets come from configuration, never source control.
-10. The store host is read **only** from `X-Platform-Host`. The API's own `Host` header is ignored for store resolution. ASP.NET Core's Forwarded Headers middleware processes only `X-Forwarded-For`/`X-Forwarded-Proto`, only from known edge addresses, and **never** `X-Forwarded-Host`.
-11. Requests authenticated with the **SSR key** are restricted to an allow-list of public `GET` storefront endpoints; any other method or route → `403`. A faulty or compromised SSR server cannot act as a shopper or staff user.
-12. The API normalizes the host again (lowercase, strip port and trailing dot, validate hostname syntax) and resolves it via `StoreDomain`; unknown → `STORE_NOT_FOUND`, never a fallback. **Host resolution lives only in the API**; the SSR server never connects to the database.
+9. Accepts connections from the edge and SSR networks only.
+10. A **trusted-path middleware** runs first in the pipeline and classifies the caller:
+    - valid **API edge key** **and** source address in the configured edge networks → caller = *edge*;
+    - valid **SSR-to-API key** **and** source address in the configured SSR networks → caller = *SSR*;
+    - anything else — no key, wrong key, the **SSR ingress key**, or a valid key from the wrong network → `403` with no store data and a security log entry.
+11. Caller *SSR* is restricted to an **allow-list of public `GET` storefront endpoints**; any other method or route (admin, auth, cart, checkout, account, any write) → `403`. A faulty or compromised SSR server cannot act as a shopper or staff user, and has no credential that unlocks more.
+12. The store host is read **only** from `X-Platform-Host`. The API's own `Host` header is ignored for store resolution. ASP.NET Core's Forwarded Headers middleware processes only `X-Forwarded-For`/`X-Forwarded-Proto`, only from known edge addresses, and **never** `X-Forwarded-Host`. Source-address checks use the **direct connection address**, never a forwarded header.
+13. The API normalizes the host again (lowercase, strip port and trailing dot, validate hostname syntax) and resolves it via `StoreDomain`; unknown → `STORE_NOT_FOUND`, never a fallback. **Host resolution lives only in the API**; the SSR server never connects to the database.
 
-**Result:** a client can set any header it wants; the edge deletes it, the SSR server and the API accept a host only together with a key the client does not have, and the API ignores every other host source. A client cannot select another store by manipulating headers.
+**Result:** a client can set any header it wants; the edge deletes it. The SSR server and the API accept a host only together with a credential the client does not have, arriving over the expected network path. The SSR server holds only a credential limited to public `GET` endpoints. A client cannot select another store by manipulating headers, and the SSR server cannot reach privileged routes.
 
-**Layers of defense:** (1) network isolation of SSR and API; (2) edge header deletion and overwrite; (3) per-caller keys; (4) SSR-key route restrictions. Mutual TLS between edge, SSR, and API is an optional later hardening if the hosting platform supports it.
+**Layers of defense:** (1) network isolation (SSR reachable only from the edge; API only from edge and SSR); (2) edge header deletion and overwrite; (3) three separate, least-privilege credentials; (4) credential-to-source-network binding; (5) SSR route allow-list. Mutual TLS is an optional later hardening if the hosting platform supports it.
 
-### 4c. Diagnostics
+**Local development:** all processes run on `localhost`, so network separation and source binding cannot be demonstrated locally. The three keys and the route allow-list still apply. Source binding is covered by integration tests that set the connection's remote address in the test server (TH-12), and must be verified in the first shared environment (U-5).
 
-A request-context endpoint (e.g., `GET /api/_test/request-context`, returning resolved host and caller kind) exists **only** for automated tests:
+### 4d. Diagnostics
+
+Request-context diagnostics (API: e.g., `GET /api/_test/request-context`, returning resolved host and caller kind; SSR: an equivalent test-only hook reporting the credential headers it received) exist **only** for automated tests:
 - Registered only when the environment is `Testing` **and** an explicit configuration flag is set.
 - **Startup fails** if the flag is set in any other environment.
-- A test starts the API with the `Production` environment and asserts the endpoint returns `404`.
+- A test starts each server in the `Production` configuration and asserts the diagnostic is absent (`404`).
 
 No host-echo or header-echo endpoint exists in production.
 
-### 4d. Required tests (M0/M1 gates)
+### 4e. Required tests (M0/M1 gates)
 
 | # | Origin | Scenario | Expected |
 |---|---|---|---|
 | TH-1 | Browser → edge | `brand-a` host with forged `X-Forwarded-Host: brand-b…`, `Forwarded: host=brand-b…`, `X-Platform-Host: brand-b…` | API and SSR resolve **brand-a** |
 | TH-2 | Direct → API (bypassing edge) | No key; wrong key; forged `X-Platform-Host` without key | `403`, no store data |
-| TH-3 | Direct → SSR (bypassing edge) | No edge key, forged `X-Platform-Host` | `403`, nothing rendered, no API call made |
-| TH-4 | Browser → edge → SSR → API | Page request to `brand-a` with forged host headers | SSR's internal API call carries `X-Platform-Host: brand-a` (asserted via the test-only diagnostic); HTML contains only brand-a data |
-| TH-5 | SSR key misuse | SSR key on a `POST`, or on an admin or non-allow-listed route | `403` |
-| TH-6 | API host source | Valid edge key, `X-Platform-Host: brand-a`, but `Host: brand-b…` | Resolves **brand-a** |
+| TH-3 | Direct → SSR (bypassing edge) | No SSR ingress key, forged `X-Platform-Host` | `403`, nothing rendered, no API call made |
+| TH-4 | Browser → edge → SSR → API | Page request to `brand-a` with forged host headers | SSR's internal API call carries `X-Platform-Host: brand-a` and the SSR-to-API key (asserted via the test-only diagnostic); HTML contains only brand-a data |
+| TH-5 | SSR-to-API key misuse | SSR-to-API key on a `POST`, or on admin, auth, cart, checkout, account, or any non-allow-listed route | `403` |
+| TH-6 | API host source | Valid API edge key from an edge address, `X-Platform-Host: brand-a`, but `Host: brand-b…` | Resolves **brand-a** |
 | TH-7 | Edge | Request for a non-platform host | Platform 404 at the edge |
-| TH-8 | Build | Browser bundles scanned for the SSR key name/value and internal API URL | Not present |
-| TH-9 | Configuration | API started as `Production` with the diagnostic flag set; and without it | Startup fails; endpoint returns `404` |
+| TH-8 | Build | Browser bundles scanned for all key names/values and the internal API URL | Not present |
+| TH-9 | Configuration | API and SSR started as `Production` with the diagnostic flag set; and without it | Startup fails; diagnostic returns `404` |
 | TH-10 | Normalization | `Brand-A.<domain>:443`, `brand-a.<domain>.` | Resolve to brand-a |
+| **TH-11** | SSR ingress key at the API | The SSR ingress key presented to the API on any route (public, admin, write) | `403` — the API never accepts it |
+| **TH-12** | Source binding | Valid **API edge key** presented from an **SSR source address** on privileged routes (admin, auth, cart write); valid SSR-to-API key from an edge or unknown address | `403` in every case |
+| **TH-13** | Edge credential routing | Through the edge: a store-page request (including a forged `X-Platform-Api-Edge-Key` from the client) reaches the SSR server **without** any API edge key — only the edge-set SSR ingress key; an `/api/*` request reaches the API with only the API edge key | Asserted via the SSR and API test-only diagnostics |
+| **TH-14** | SSR configuration | The SSR server's configuration schema and deployment configuration contain no API edge key setting; startup fails if one is provided | Configuration test |
 
-### 4e. Caching
+### 4f. Caching
 
 - Public responses: `Cache-Control: public, max-age=0, s-maxage=60`; everything else defaults to `private, no-store` (secure default: a response is public only if its endpoint explicitly opts in). ASP.NET Core output caching is **not** used for public pages; the shared cache sits at the edge.
 - The suspended-store `503` page is `no-store` (system-behavior §4.2).
 - **Shared cache:** M1 emits correct headers; the shared cache arrives with hosting (ADR-12). Cache-key query-parameter normalization (RA-7) is configured with the shared cache and first matters in M4.
 
-### 4f. Unresolved — depends on ADR-12
+### 4g. Unresolved — U-5, depends on ADR-12
 
-The **production** edge product must support: deleting and overwriting request headers, adding a secret origin header, and keeping SSR and API off the public internet (private networking or origin restrictions). Common CDNs and reverse proxies support this, but the exact product is chosen with hosting. **Until ADR-12 is decided, the flow is proven only with the local edge (Caddy).** If the chosen edge cannot add a secret header, the fallback is mutual TLS or a private-network-only origin.
+The **production** edge and hosting must support: deleting and overwriting request headers; adding a **different** secret origin header per route (API edge key on `/api/*`, SSR ingress key on store pages); keeping SSR and API off the public internet; and **stable, distinguishable source networks** for the edge and the SSR server so the API can bind each credential to its network. Common CDNs and reverse proxies support per-route headers, but the exact product is chosen with hosting. **Until ADR-12 is decided, the flow is proven only with the local edge (Caddy) and integration tests.** If the chosen platform cannot provide per-route secrets or source binding, the fallback is mutual TLS with a separate client certificate per caller. **U-5 stays open** and must be resolved before the first shared environment.
 
 **Local development edge**
 
@@ -302,7 +324,7 @@ The **production** edge product must support: deleting and overwriting request h
 | **Caddy** | Issues trusted local TLS certificates for `*.localhost` automatically, so `__Host-` cookies (which require `Secure`) work on `brand-a.localhost`; simple config | One non-.NET tool |
 | YARP (.NET reverse proxy) | Same language; could later serve as a production edge component | Local TLS for arbitrary `*.localhost` hosts must be set up separately |
 
-**Recommendation: Caddy** for local development, configured to implement edge rules 1–4 exactly (header deletion, overwrite, edge key from a local secret). In development the SSR server and API listen on `localhost` ports and are therefore reachable directly — the key checks (rules 5 and 9) still apply, and tests TH-2/TH-3 run against them. Production edge depends on ADR-12.
+**Recommendation: Caddy** for local development, configured to implement edge rules 1–4 exactly (header deletion, overwrite, one credential per route from local secrets). In development the SSR server and API listen on `localhost` ports and are therefore reachable directly — the key checks (rules 5 and 10) still apply, and tests TH-2/TH-3/TH-11 run against them; source binding is tested in integration tests (TH-12). Production edge depends on ADR-12.
 
 ---
 
@@ -399,7 +421,7 @@ Parameters at or above current OWASP guidance, tuned to ~100–250 ms on product
 |---|---|
 | Operations | Worker runs continuously with health checks and a restart policy. |
 | Testing | Message exists iff the business transaction committed; retry never repeats the business change; parking after max attempts. |
-| **Open point** | **Operator alert channel is not defined** in the approved documents. Proposal: error-level structured log **and** an email to a configured operator address. Needs your decision. |
+| **Operator alerts** | Error-level structured log **and** an email to a configured operator address (U-2, approved 2026-10-18). |
 
 ---
 
@@ -452,7 +474,7 @@ Emails never contain passwords; reset links use the store's primary host (requir
 - Generate **WebP** renditions at fixed widths (proposal: 320, 640, 960, 1280, 1920 — never upscaled) plus a re-encoded full-size version; logos get a smaller set.
 - Storefront uses `srcset`/`sizes` (Angular `NgOptimizedImage` with a custom loader).
 
-**Domain-model impact (documentation update after approval):** MediaAsset gains a list of **renditions** (width, height, byte size, storage key, URL). Order lines continue to reference the asset id.
+**Domain-model impact (applied 2026-10-18 after approval):** MediaAsset gains a list of **renditions** (width, height, byte size, storage key, URL) — [domain-model §3.2](domain-model.md#32-mediaasset). Order lines continue to reference the asset id.
 
 ---
 
@@ -483,7 +505,7 @@ Emails never contain passwords; reset links use the store's primary host (requir
 | **Aspire** (AppHost) | Starts PostgreSQL, MinIO, Mailpit, API, worker, and the Angular apps with one command; built-in dashboard with logs, traces, and metrics (OpenTelemetry); connection strings wired automatically | One more concept to learn; the edge proxy (Caddy) runs as a container resource |
 | Docker Compose + `dotnet run` / `ng serve` | Familiar, explicit | Manual wiring of connection strings and startup order; no unified telemetry view |
 
-**Recommendation: Aspire** for local development (not a production deployment decision). Docker Compose remains a valid fallback if you prefer fewer tools.
+**Decision: Aspire** for local development (approved 2026-10-18; not a production deployment decision).
 
 **Developer prerequisites:** .NET 10 SDK, Node.js LTS (Angular toolchain), a container runtime, and a browser trusting the local edge's development certificate.
 
@@ -493,8 +515,10 @@ Emails never contain passwords; reset links use the store's primary host (requir
 |---|---|---|
 | .NET SDK | 10.0 (LTS), one SDK feature band | `global.json` (`rollForward: latestPatch`) |
 | NuGet packages | Exact versions | Central package management + `RestorePackagesWithLockFile=true`; committed `packages.lock.json`; CI runs `dotnet restore --locked-mode` |
-| Node.js | **24 LTS, ≥ 24.13.1** (Angular 22 minimum). Node 24 enters maintenance on 2026-10-20 (supported to 2028-04-30); Node 26 becomes LTS on 2026-10-28 — **re-evaluate at M0 start** | `.nvmrc` + `engines` in `package.json`; CI uses the same file |
-| Angular | **22.x** (current major, released June 2026), with the TypeScript version Angular 22 requires. Angular 23 is expected in November 2026 — **re-evaluate at M0 start** | Exact versions in `package.json` |
+| Node.js | Baseline **24 LTS, ≥ 24.13.1** (Angular 22 minimum; supported to 2028-04-30) | `.nvmrc` + `engines` in `package.json`; CI uses the same file |
+| Angular | Baseline **22.x** (current major, released June 2026), with the TypeScript version Angular 22 requires | Exact versions in `package.json` |
+
+**Node/Angular selection rule (approved 2026-10-18):** at M0 start, choose an Angular major and a Node.js version that are **listed together in Angular's official version-compatibility table**, preferring a Node LTS line. Do **not** select Node 26 merely because it becomes LTS (2026-10-28); move to it only if the official table supports it for the chosen Angular major and there is a concrete reason. The chosen pair and the table checked are recorded in the M0 pull request.
 | npm dependencies | Exact versions | `save-exact=true` in `.npmrc`; committed `package-lock.json`; CI runs `npm ci` |
 | Playwright | **1.62.x** | Exact version; browsers installed by CI with the matching version |
 | Contract generator | **openapi-typescript 7.13.0** | Exact version (ADR-03) |
@@ -568,19 +592,29 @@ Inputs: wildcard TLS for `*.<platform-domain>`, region latency to Egypt, **OQ2 d
 **Other documents affected**
 - [milestone-m0-m1.md](milestone-m0-m1.md): M0 deliverables and M1 tooling references updated to .NET.
 - [proposed-doc-changes.md](proposed-doc-changes.md): D1 updated — the contracts library is now generated from OpenAPI; the requirements §24 "Two apps, one workspace" row **no longer needs a change**.
-- The roadmap (presented in conversation, not yet in the repository) referred to "backend skeleton", "contracts", and "test harness" generically; its milestone order and scope are **unaffected** by the language change. It will be written to the repository after the decisions are confirmed.
+- The roadmap is now in the repository: [roadmap.md](roadmap.md).
 
 ---
 
-## Decisions requested
+## Decision record
 
-1. Approve, change, or reject each ADR (01–11); confirm ADR-12 stays deferred.
-2. **ADR-01:** .NET 10 LTS; Minimal APIs vs. controllers; modular monolith with one project per domain.
-3. **ADR-02:** PostgreSQL vs. SQL Server; EF Core with explicit SQL for critical paths.
-4. **ADR-05:** custom session handler without ASP.NET Core Identity; Argon2id library vetting with bcrypt as fallback.
-5. **ADR-10:** NetVips, or ImageSharp if you can confirm a license.
-6. **ADR-11:** Aspire vs. Docker Compose for local development.
-7. **Operator alert channel** (ADR-07 open point).
-8. Accept the **MediaAsset renditions** addition to the domain model (ADR-10).
-9. **ADR-04:** approve the trusted-host flow (edge key + separate SSR key, SSR-key route restrictions, test-only diagnostics). The production edge capability remains open until ADR-12 (§4f).
-10. **ADR-11:** approve the toolchain baseline; confirm whether to move to Node 26 LTS / Angular 23 if they are available when M0 starts.
+**Review of revision 3 — 2026-10-18**
+
+| Item | Decision |
+|---|---|
+| ADR-01 | Approved: .NET 10 LTS, C# 14, ASP.NET Core 10, Minimal APIs, modular monolith with one project per domain |
+| ADR-02 | Approved: PostgreSQL; EF Core 10 + Npgsql with explicit SQL for locks and idempotent inserts |
+| ADR-03 | Approved: code-first OpenAPI; openapi-typescript 7.13.0; CI drift check |
+| **ADR-04** | **Not approved as written (revision 3).** Mandatory correction: separate the edge-to-SSR credential from the edge-to-API credential; keep the SSR-to-API credential scoped to allow-listed public `GET` endpoints; enforce trusted network paths; test that the SSR server cannot use the API edge credential for privileged routes. **Revision 4 applies the correction — pending review.** |
+| ADR-05 | Approved: custom session handler, no ASP.NET Core Identity; Argon2id after library vetting, bcrypt fallback |
+| ADR-06–09 | Approved as recommended |
+| ADR-10 | Approved: NetVips; MediaAsset renditions added to the domain model |
+| ADR-11 | Approved: test stack, Aspire locally, reproducible toolchain; Node/Angular chosen from the official compatibility table at M0 start (not Node 26 merely because it is LTS) |
+| ADR-12 | Deferred until before the first shared environment |
+| Cross-cutting conventions | Approved |
+| U-2 operator alerts | Approved: error log + email to a configured operator address |
+| U-5 production edge capability | **Open** until hosting is selected; resolve before the first shared environment |
+
+**Still requested**
+1. **Review ADR-04 revision 4** (§4a–4g, tests TH-1–TH-14). Implementation does not start until it is approved.
+2. **Resolve U-5** together with ADR-12, before the first shared environment.

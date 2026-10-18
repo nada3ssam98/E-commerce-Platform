@@ -2,11 +2,11 @@
 
 | | |
 |---|---|
-| **Status** | **Core domains approved** (2026-10-18; Branding and Theme: Phase 5) · **architecture-review revisions applied in draft, pending approval** |
+| **Status** | **Approved** — core domains (2026-10-18; Branding and Theme: Phase 5), including the architecture-review revisions (approved 2026-10-18) |
 | **Last updated** | 2026-10-18 |
-| **Based on** | [requirements.md](requirements.md) v1.9 draft (last approved: v1.8) · Cross-domain behavior: [system-behavior.md](system-behavior.md) |
+| **Based on** | [requirements.md](requirements.md) v1.9 (approved 2026-10-18) · Cross-domain behavior: [system-behavior.md](system-behavior.md) |
 
-> **Pending revisions.** Sections marked *(revised 2026-10-18 — pending approval)* contain changes from the architecture review ([proposed-doc-changes.md](proposed-doc-changes.md)). Until you approve them, the previously approved text is the one they replace, as recorded in that file.
+> **Revisions.** Sections marked *(revised/clarified 2026-10-18 — approved 2026-10-18)* contain changes from the architecture review; the replaced text is recorded in the [change record](proposed-doc-changes.md). The trusted-host **design** referenced in §1.8 is in [ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) revision 4, which is pending review.
 
 > **How to use this document.** Each domain is analyzed separately and marked **Approved** or **Draft**. Approved domains are the basis for Phase 3 (relationships and workflows) and Phase 4 (architecture).
 >
@@ -250,12 +250,12 @@ All transitions are performed by the **platform operator** (scripts in the MVP).
 - Catalog pages return HTTP **503** with a `Retry-After` header, rendered as a branded "temporarily unavailable" page showing the store's display name, logo, and **support contacts**. A 503 tells search engines the outage is temporary.
 - The page links to **"Track an order"** and **"My orders"**, which remain available read-only.
 - Existing carts are kept (not deleted) so they resume if the store is reactivated; normal cart expiry still applies.
-- Public pages reflect a status change within **60 seconds** (time-based cache expiry; **no on-demand invalidation** in the MVP — [system-behavior §4.5](system-behavior.md#45-invalidation-approved)). The suspended `503` page itself is not cached. *(Revised 2026-10-18 — pending approval.)*
+- Public pages reflect a status change within **60 seconds** (time-based cache expiry; **no on-demand invalidation** in the MVP — [system-behavior §4.5](system-behavior.md#45-invalidation-approved)). The suspended `503` page itself is not cached. *(Revised 2026-10-18 — approved 2026-10-18.)*
 
 #### Enforcement
 - **The backend is the authority.** Every business operation checks the **current** effective status in the database — never a cached value. Cart writes and order placement are rejected with a `STORE_NOT_ACTIVE` error when the effective status is not `Active`.
-- Order placement, order item-edit apply, and customer/guest cancellation check the store status **inside their transaction**, under a shared lock on the organization and store rows ([system-behavior §5.1](system-behavior.md#51-lock-scope)). An operation committed before the suspension is valid; none can commit after. *(Item edits and customer cancellation added 2026-10-18 — RA-6, pending approval.)*
-- Operations that stay **allowed** while suspended (fulfillment transitions, staff cancellation, mark as paid, payment correction, return recording, delivery-detail edits, stock adjustments — table above) are unaffected by suspension and need no synchronization with it.
+- Order placement, order item-edit apply, and customer/guest cancellation check the store status **inside their transaction**, under a shared lock on the organization and store rows ([system-behavior §5.1](system-behavior.md#51-lock-scope)). An operation committed before the suspension is valid; none can commit after. *(Item edits and customer cancellation added 2026-10-18 — RA-6, approved 2026-10-18.)*
+- **D8 is preserved.** Operations that stay **allowed** while suspended (fulfillment transitions, staff cancellation, mark as paid, payment correction, return recording, delivery-detail edits, stock adjustments — table above) remain available, subject to permissions, workflow rules, stock invariants, and audit logging; they are unaffected by suspension and need no synchronization with it. *(RA-6 narrow interpretation, approved 2026-10-18.)*
 - The frontend reads the status from the store configuration to show the right pages and banners — UX only.
 
 ### 1.7 Identity, membership, and permissions
@@ -275,7 +275,7 @@ Three separate layers answer three separate questions:
 | Permission | Covers |
 |---|---|
 | `dashboard.read` | Overview metrics |
-| `catalog.read` / `catalog.write` / `catalog.publish` | Products, categories, images. `catalog.publish` covers publish, unpublish, archive, and restore of **products** and archive/restore of **variants**; category archive/restore uses `catalog.write` (§2.11). *(Clarified 2026-10-18 — pending approval.)* |
+| `catalog.read` / `catalog.write` / `catalog.publish` | Products, categories, images. `catalog.publish` covers publish, unpublish, archive, and restore of **products** and archive/restore of **variants**; category archive/restore uses `catalog.write` (§2.11). *(Clarified 2026-10-18 — approved 2026-10-18.)* |
 | `inventory.read` / `inventory.adjust` | Stock levels, adjustments, discrepancy workflow |
 | `orders.read` | Orders, details, event log |
 | `orders.transition` | Status transitions except cancellation |
@@ -308,8 +308,8 @@ Three separate layers answer three separate questions:
 1. Normalize the request's `Host` header → look up `StoreDomain` → store.
 2. **Unknown host → platform 404 page. There is never a fallback to a default store.**
 3. Resolve the effective status and apply 1.6.
-4. Resolution results are cached per host for **at most 60 seconds**; business operations never use this cache ([system-behavior §4.5](system-behavior.md#45-invalidation-approved)). *(Revised 2026-10-18 — pending approval.)*
-5. The host comes **only** from the trusted edge (`X-Platform-Host`, verified per [architecture ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching), proposed); client-supplied forwarded-host headers are never used.
+4. Resolution results are cached per host for **at most 60 seconds**; business operations never use this cache ([system-behavior §4.5](system-behavior.md#45-invalidation-approved)). *(Revised 2026-10-18 — approved 2026-10-18.)*
+5. The host comes **only** from the trusted edge (`X-Platform-Host`, accepted only with a valid route-specific credential over the expected network path — design in [architecture ADR-04](architecture-decisions.md#adr-04-request-topology-host-resolution-and-public-caching) revision 4, pending review); client-supplied forwarded-host headers are never used.
 
 **Admin**
 1. The store comes from the route (`/stores/:storeId/...`).
@@ -391,7 +391,7 @@ A minimal, **append-only**, platform-wide record of sensitive **platform-operato
 |---|---|---|
 | `id` | ✅ | |
 | `occurredAt` | ✅ | Timestamp |
-| `actor` | ✅ | Operator identifier supplied to the script (no operator accounts in the MVP — [system-behavior RA-1](system-behavior.md#72-remaining-assumptions--pending-approval)). It is a **self-declared audit label, not verified proof of identity**; accountability relies on controlling who can run operator commands. |
+| `actor` | ✅ | Operator identifier supplied to the script (no operator accounts in the MVP — [system-behavior RA-1](system-behavior.md#72-approved-assumptions-ra-1-to-ra-8)). It is a **self-declared audit label, not verified proof of identity**; accountability relies on controlling who can run operator commands. |
 | `action` | ✅ | See below |
 | `targetType`, `targetId` | ✅ | e.g., `Store`, `Organization`, `StaffUser`, `StoreMembership` |
 | `storeId` | — | When the action concerns a store |
@@ -411,11 +411,11 @@ A minimal, **append-only**, platform-wide record of sensitive **platform-operato
 |---|---|
 | Not found | New StaffUser + StaffPasswordCredential with a random temporary password and `mustChangePassword` |
 | Found, `Active` | **Reuse the identity.** No duplicate identity, **no credential change, no temporary password generated or revealed** |
-| Found, `Disabled` | **Refused**; re-enabling is a separate, audited action ([system-behavior RA-2](system-behavior.md#72-remaining-assumptions--pending-approval)) |
+| Found, `Disabled` | **Refused**; re-enabling is a separate, audited action ([system-behavior RA-2](system-behavior.md#72-approved-assumptions-ra-1-to-ra-8)) |
 
 - The new StoreMembership carries an **explicitly assigned role for this store**. Memberships in other stores grant nothing here, and are not changed.
 - **Temporary passwords** are **generated** with a cryptographically secure generator (never supplied by the operator), displayed once to the operator **only after the provisioning transaction commits**, are **never logged or persisted** in plaintext, and force a change at first login.
-- **Staff password reset** is a separate operator command, never a side effect of provisioning: new generated temporary password (shown once), `mustChangePassword` set, **all of the staff user's sessions revoked**, `StaffPasswordReset` audit event. *(Clarified 2026-10-18 — pending approval.)*
+- **Staff password reset** is a separate operator command, never a side effect of provisioning: new generated temporary password (shown once), `mustChangePassword` set, **all of the staff user's sessions revoked**, `StaffPasswordReset` audit event. *(Clarified 2026-10-18 — approved 2026-10-18.)*
 
 ---
 
@@ -683,6 +683,7 @@ A minimal, store-scoped record of uploaded files, reused by product images and s
 | `originalFileName` | — | Sanitized; for display in the admin only |
 | `storageKey` | ✅ | **Backend only**; random, never derived from the file name |
 | `url` | ✅ | Public URL derived from the storage key |
+| `renditions` | ✅ | *(Added 2026-10-18 — ADR-10, approved.)* Resized WebP versions generated at upload: for each, width, height, byte size, storage key, and URL. Fixed widths (e.g., 320–1920), never upscaled; logos use a smaller set. Contracts expose them for `srcset`. |
 | `createdBy` | ✅ | Staff user |
 | `createdAt` | ✅ | |
 | `firstReferencedAt` | — | Set the first time anything references the asset; never cleared |
@@ -722,9 +723,9 @@ Cleanup is a backend job that removes both the stored file and the record. Befor
 
 There is no media library listing or deletion endpoint in the MVP; cleanup is automatic.
 
-### 3.6 Open technical question (Phase 4)
+### 3.6 Image sizes (resolved in Phase 4)
 
-Serving original files up to 5 MB to mobile shoppers conflicts with the performance target. Resized versions (e.g., several widths in WebP) are needed — generated at upload or by an image CDN. This is decided in Phase 4; contracts should allow an image to expose multiple sizes.
+Serving original files up to 5 MB to mobile shoppers conflicts with the performance target. **Resolved by ADR-10 (approved 2026-10-18):** renditions are generated with NetVips during upload (validation, auto-rotation, metadata stripping, WebP widths) and listed on the asset (§3.2). Order lines keep referencing the asset id.
 
 ### 3.7 Future evolution
 
@@ -768,7 +769,7 @@ These operations always run **inside the transaction of the operation that trigg
 
 | Entity | Responsibility |
 |---|---|
-| **InventoryLevel** | Current stock of one variant: `onHand`, `committed`, discrepancy marker. *(No `version` field: Count and Contain use the expected `onHand` as their concurrency check; Receive/Remove are deltas — revised 2026-10-18, pending approval.)* |
+| **InventoryLevel** | Current stock of one variant: `onHand`, `committed`, discrepancy marker. *(No `version` field: Count and Contain use the expected `onHand` as their concurrency check; Receive/Remove are deltas — revised 2026-10-18, approved 2026-10-18.)* |
 | **StockMovement** | One append-only record per quantity change of one variant |
 
 ```mermaid
@@ -808,7 +809,7 @@ Three explicit operations — never a free-form "set quantity" field.
 
 **Contain** (discrepancy workflow) takes the counted value `X < committed` and the `onHand` value the admin saw; it is rejected (409) if `onHand` changed meanwhile.
 
-**Idempotency** *(added 2026-10-18; extended to Count and Contain 2026-10-18 — RA-5, pending approval)*: **all four** adjustments — Receive, Remove, Count, Contain — require a client-generated **request id** (one per intentional action, reused for retries).
+**Idempotency** *(added 2026-10-18; extended to Count and Contain 2026-10-18 — RA-5, approved 2026-10-18)*: **all four** adjustments — Receive, Remove, Count, Contain — require a client-generated **request id** (one per intentional action, reused for retries).
 - It is stored on the resulting stock movement together with a **request fingerprint** (hash of operation, variant, quantities, expected `onHand`, reason, note), with a **unique `(storeId, requestId)` constraint**, inserted in the same transaction as the stock change.
 - **Same id, same payload** → the **original result** (the movement's before/after values) is returned; nothing is applied and no second movement is created — even if `onHand` has changed since.
 - **Same id, different payload** → rejected (`422 REQUEST_ID_CONFLICT`).
@@ -927,7 +928,7 @@ The three state filters are **mutually exclusive and together cover every tracke
 | I4 | Mutually exclusive stock states; dashboard "needs replenishment" = `SoldOut ∪ LowStock` |
 | I5 | Whole-unit quantities only |
 | I6 | Reconciliation mismatches alert; never auto-correct |
-| I7 | *(Pending approval)* All admin adjustments idempotent per `(storeId, requestId)`; Count/Contain additionally check the expected `onHand`; no inventory `version` |
+| I7 | *(Approved 2026-10-18)* All admin adjustments idempotent per `(storeId, requestId)`; Count/Contain additionally check the expected `onHand`; no inventory `version` |
 
 ---
 
@@ -1018,7 +1019,7 @@ erDiagram
 | Password changed (logged in) | Hash replaced; `passwordChangedAt` updated; other sessions revoked; current session rotated; notification email sent |
 | Password reset (customer) | Hash replaced; all sessions revoked; reset tokens invalidated; notification email sent |
 | Forced change completed (staff) | Hash replaced; `mustChangePassword` cleared; session rotated |
-| Staff password reset by the operator (§1.15) | Hash replaced with a generated temporary password; `mustChangePassword` set; **all** staff sessions revoked; `StaffPasswordReset` audit event *(clarified 2026-10-18 — pending approval)* |
+| Staff password reset by the operator (§1.15) | Hash replaced with a generated temporary password; `mustChangePassword` set; **all** staff sessions revoked; `StaffPasswordReset` audit event *(clarified 2026-10-18 — approved 2026-10-18)* |
 | Login with an outdated hash algorithm or parameters | Transparently **re-hashed** with current settings after successful verification |
 | Owner deleted | Credential deleted with it (account deletion is deferred) |
 
@@ -1306,7 +1307,7 @@ stateDiagram-v2
 | Lines | Variant id; resolved product name and option labels; slug; primary image; quantity; **current unit price**; line total; stock state; issues |
 | Subtotal | Sum of line totals of **available lines only** |
 | Shipping | Fee charged; rule applied (`Flat` or `FreeOverThreshold`); **amount remaining for free shipping**, if a threshold exists |
-| Tax | `pricesIncludeTax` (always `true`) so the UI can state that prices include tax. **No tax amount** is calculated or returned in the MVP *(revised 2026-10-18 — pending approval; requirements §14)* |
+| Tax | `pricesIncludeTax` (always `true`) so the UI can state that prices include tax. **No tax amount** is calculated or returned in the MVP *(revised 2026-10-18 — approved 2026-10-18; requirements §14)* |
 | Grand total | Subtotal + shipping |
 | Issues | Cart-level and line-level, each blocking or not |
 | `canCheckout` | True only if the cart is not empty and has no blocking issue |
@@ -1444,7 +1445,7 @@ Constraints: unique `Active` cart per (store, customer); unique `guestTokenHash`
 | Operation | Notes |
 |---|---|
 | `GET /api/cart` | Current cart + quote; creates nothing |
-| `POST /api/cart/lines` | Add variant + quantity + **request id** (creates the cart and guest cookie if needed; idempotent per request id). **Response contract:** always the **current** cart and quote. A replayed request (same request id, same payload) returns the current cart — which may include changes made after the original add — not a stored copy of the original response; same request id with a different payload → `422`. *(RA-4 — pending approval)* |
+| `POST /api/cart/lines` | Add variant + quantity + **request id** (creates the cart and guest cookie if needed; idempotent per request id). **Response contract:** always the **current** cart and quote. A replayed request (same request id, same payload) returns the current cart — which may include changes made after the original add — not a stored copy of the original response; same request id with a different payload → `422`. *(RA-4 — approved 2026-10-18)* |
 | `PATCH /api/cart/lines/:variantId` | Set quantity |
 | `DELETE /api/cart/lines/:variantId` | Remove line |
 | `POST /api/cart/lines/:variantId/adjust-to-available` | 6.6.1 |
@@ -1549,8 +1550,8 @@ stateDiagram-v2
 
 **Rules**
 - No skipping, no backward transitions; `Delivered`, `Cancelled`, `DeliveryFailed` are terminal.
-- **A failed delivery attempt is not a status.** During courier retries the order stays `Shipped` and remains eligible for further attempts; stock and payment are unchanged. How staff record an attempt is open — [requirements OQ4](requirements.md#26-open-questions) (recommended for the MVP: an internal note, `NoteAdded`).
-- **`DeliveryFailed` is terminal**: set only when the store abandons delivery; it cannot be retried or reversed (no undo in the MVP). A customer who still wants the goods places a new order. *(Clarified 2026-10-18 — pending approval.)*
+- **A failed delivery attempt is not a status.** During courier retries the order stays `Shipped` and remains eligible for further attempts; stock and payment are unchanged. Staff record an attempt, if they wish, as an internal note (`NoteAdded`) — [requirements OQ4](requirements.md#26-open-questions), resolved 2026-10-18 (U-1).
+- **`DeliveryFailed` is terminal**: set only when the store abandons delivery; it cannot be retried or reversed (no undo in the MVP). A customer who still wants the goods places a new order. *(Clarified 2026-10-18 — approved 2026-10-18.)*
 - Every transition is **compare-and-set** on the expected current status, carries the order **version**, and runs in **one transaction** with its inventory and payment effects and its event ([requirements §11.4](requirements.md#114-atomicity-and-concurrency)).
 - **No automatic cancellation** of old `Pending` orders. The admin has a **"Pending for more than 48 hours"** filter (`status = Pending` and `placedAt` older than 48 hours). Their stock remains committed until the order is cancelled or otherwise transitions.
 
@@ -1600,7 +1601,7 @@ This mapping keeps Inventory invariant 2 true: `committed` = sum of open-order q
 
 **Effects (one transaction):** status → `Cancelled`; `release` on every line; payment → `Voided`; `Cancelled` event with reason and actor; all access tokens become unusable (order no longer `Pending`).
 
-**Reasons** — customer or guest: changed my mind, ordered by mistake, other. Staff: customer request, unreachable for confirmation, out of stock, duplicate order, other. **A note is required for "other"** (1–500 characters *[DEFAULT]*), optional otherwise; a reason outside the actor's list is rejected. *(Aligned with requirements §11.1 v1.9 — pending approval.)*
+**Reasons** — customer or guest: changed my mind, ordered by mistake, other. Staff: customer request, unreachable for confirmation, out of stock, duplicate order, other. **A note is required for "other"** (1–500 characters *[DEFAULT]*), optional otherwise; a reason outside the actor's list is rejected. *(Aligned with requirements §11.1 v1.9 — approved 2026-10-18.)*
 
 **Synchronization with suspension:** customer and guest cancellation take a **shared** lock on the organization and store rows and check that the store is `Active` inside the transaction, so no customer cancellation commits after a suspension commits (system-behavior §5.1, RA-6). Staff cancellation is allowed while suspended and needs no such lock.
 
@@ -1697,7 +1698,7 @@ Item edits per [requirements §12](requirements.md#12-order-editing), made unamb
 
 | Rule | Detail |
 |---|---|
-| When | Order `Pending` or `Confirmed`; payment `Pending`; store `Active` — checked inside the apply transaction under a **shared** lock on the organization and store rows, so no edit commits after a suspension commits *(RA-6 — pending approval)* |
+| When | Order `Pending` or `Confirmed`; payment `Pending`; store `Active` — checked inside the apply transaction under a **shared** lock on the organization and store rows, so no edit commits after a suspension commits *(RA-6 — approved 2026-10-18)* |
 | Permission | `orders.edit` |
 | Operations | Change quantity; swap variant; add line; remove line; ≥1 line must remain |
 | Limits | 1–10 per line; ≤ 50 lines |
@@ -1748,7 +1749,7 @@ Append-only. Each records: type, actor type (staff, customer, guest, system) and
 | Status | `status`, `paymentStatus` (copy), `placedAt`, `confirmedAt?`, `processingAt?`, `shippedAt?`, `deliveredAt?`, `cancelledAt?`, `deliveryFailedAt?` |
 | Reasons | `cancellationReason?` + `cancelledBy`, `deliveryFailureReason?` |
 | Snapshots | Contact (name, phone, email?) — immutable; recipient (name, phone) and address and delivery notes — editable via 7.5; shipping rule (flat fee, threshold) |
-| Totals | `subtotal`, `shippingFee`, `grandTotal`, `currency`. **No tax field in the MVP** — prices include tax and tax is not itemized; a future tax engine adds per-line tax snapshots for new orders only *(revised 2026-10-18 — pending approval; replaces `taxIncluded`)* |
+| Totals | `subtotal`, `shippingFee`, `grandTotal`, `currency`. **No tax field in the MVP** — prices include tax and tax is not itemized; a future tax engine adds per-line tax snapshots for new orders only *(revised 2026-10-18 — approved 2026-10-18; replaces `taxIncluded`)* |
 | Fulfillment | `courierName?`, `trackingNumber?`, `returnRecordedAt?` |
 | Concurrency | `version` |
 
@@ -1801,7 +1802,7 @@ Append-only. Each records: type, actor type (staff, customer, guest, system) and
 | Store suspended with open orders | Fulfillment, cancellation, delivery edits, payment recording and correction, and returns continue; item edits blocked |
 | `Pending` order untouched for days | Remains committed; visible in the "> 48 h" filter |
 | `DeliveryFailed` but goods never return | Return not recorded; stays in the filter; no stock change |
-| Courier attempt fails, will retry tomorrow | Order stays `Shipped`; staff may add an internal note (OQ4); no stock or payment change |
+| Courier attempt fails, will retry tomorrow | Order stays `Shipped`; staff may add an internal note (U-1); no stock or payment change |
 | `DeliveryFailed` set by mistake | Not reversible in the MVP; the customer places a new order |
 | Customer cancels at the moment the store is suspended | Serialized with the suspension: either the cancel commits first, or it fails with `STORE_NOT_ACTIVE` |
 
