@@ -36,7 +36,7 @@
 | P5 | Decisions M1-D1 … M1-D5 and U-3 (`Retry-After` 3600 s) | ✅ Approved 2026-10-18 |
 | P6 | Node/Angular pair chosen at M0 start from Angular's **official compatibility table** (not Node 26 merely because it is LTS — ADR-11) | Done as the first M0 step; recorded in the M0 pull request |
 
-**Not required before M0/M1:** ADR-06–10 (approved; needed from M2/M3), ADR-12 and **U-5** (open; required before the first shared environment, not for local M0/M1), RA-4–RA-8 (RA-4, RA-7, RA-8 approved with clarifications; RA-5 and RA-6 revised in the second review of 2026-10-18 and **pending approval** — [change record §7](proposed-doc-changes.md#7-ra-1-to-ra-8--second-review-2026-10-18); RA-7 is first needed in M4, RA-8 in M5/M7). RA-1–RA-3 remain approved; their clarifications (declared operator identity and audit outcome, deterministic redirects) apply to the M1 operator commands and locale routing.
+**Not required before M0/M1:** ADR-06–10 (approved; needed from M2/M3), ADR-12 and **U-5** (open; required before the first shared environment, not for local M0/M1), RA-4–RA-8 (RA-4, RA-7, RA-8 approved with clarifications; RA-5 and RA-6 revised in the second review and approved 2026-10-18 — [change record §7](proposed-doc-changes.md#7-ra-1-to-ra-8--second-review-2026-10-18); RA-7 is first needed in M4, RA-8 in M5/M7). RA-1–RA-3 remain approved; their clarifications (declared operator identity and audit outcome, deterministic redirects) apply to the M1 operator commands and locale routing.
 
 ### 1a. M0 start checklist (execution order — begins only after G3 is verified)
 

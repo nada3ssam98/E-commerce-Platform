@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **Phase 3 not yet approved.** RA-1–RA-8 were **re-reviewed on 2026-10-18** (second review): RA-1, RA-2, RA-3, RA-4, RA-7, RA-8 approved with the clarifications now in the text; **RA-5 and RA-6 revised as requested — pending approval** (§7.2). R1–R4, U-1–U-4, U-6 approved; ADR-04 revision 4 approved 2026-10-18. **Still open:** U-5 (production edge capability) and the items deferred to the architecture phase (§7.4). |
+| **Status** | **Phase 3 approved (2026-10-18).** RA-1–RA-8 approved after the second review of 2026-10-18 (RA-5 and RA-6 as revised; the four second-review clarifications included) — §7.2. R1–R4, U-1–U-4, U-6 approved; ADR-04 revision 4 approved 2026-10-18. **Still open:** U-5 (production edge capability) and the implementation items deferred to the architecture phase (§7.4, P4-1–P4-7). |
 | **Last updated** | 2026-10-18 |
 | **Phase** | 3 — Cross-domain relationships and end-to-end workflows |
 | **Based on** | [requirements.md](requirements.md) v1.9 (approved 2026-10-18), [domain-model.md](domain-model.md) (approved) |
@@ -219,7 +219,7 @@ Principle: **the narrowest lock that protects a specific invariant**, acquired i
 | **Store activation / suspension / reactivation** | Store row | **Exclusive** | INV-12 |
 | **Organization suspension / reactivation** | Organization row | **Exclusive** | INV-12 for all its stores |
 | **Item-edit apply; customer/guest cancellation** *(added 2026-10-18 — RA-6, approved 2026-10-18)* | Organization row, then store row | **Shared** | INV-12 — no item edit or customer cancellation commits after a suspension commits (both are forbidden while suspended and change stock and payment) |
-| **Other operations prohibited while suspended** (cart writes incl. merge, registrations, staff catalog/media/settings/branding writes) *(RA-6 revision, pending approval)* | Synchronized with status changes — mechanism per P4-1 (§7.4) | — | INV-12 — none commits after a suspension commits; must not serialize non-conflicting operations against each other |
+| **Other operations prohibited while suspended** (cart writes incl. merge, registrations, staff catalog/media/settings/branding writes) *(RA-6 second review, approved 2026-10-18)* | Synchronized with status changes — mechanism per P4-1 (§7.4) | — | INV-12 — none commits after a suspension commits; must not serialize non-conflicting operations against each other |
 | Order transition, item edit, delivery edit, payment action, return, cancellation | The order (version check) | Exclusive | One concurrent change wins; INV-3, INV-5 |
 | | Inventory levels touched | Exclusive, ascending variant id | INV-2 |
 | Inventory adjustment (Receive, Remove, Count, Contain) | That inventory level | Exclusive | INV-2; serializes same-variant retries before the request-id lookup (W8) |
@@ -230,7 +230,7 @@ Principle: **the narrowest lock that protects a specific invariant**, acquired i
 
 **Why shared locks for placement:** shared locks do **not** block each other, so concurrent placements in the same store run in parallel. They wait only while an operator's status change holds the exclusive lock — a rare, operator-initiated event.
 
-**Suspension enforcement boundary** [RA-6 — revised 2026-10-18 after the second review; **pending approval**; **D8 preserved**]
+**Suspension enforcement boundary** [RA-6 — revised after the second review, approved 2026-10-18; **D8 preserved**]
 
 The rule: **an operation that is prohibited while a store is suspended must never commit after the suspension commits** — there is **no** millisecond-race exception for any prohibited operation (an earlier wording that accepted such races for cart writes, registrations, and catalog/settings writes is withdrawn). Operations that D8 permits while suspended are unaffected.
 
@@ -267,7 +267,7 @@ Every operation acquires locks in this order, which prevents deadlocks:
 |---|---|---|
 | Order placement | Idempotency key, unique per `(storeId, key)`; cart `Converted` | Returns the original order (guests: an additional access token) |
 | **Add to cart** | **Request id** recorded with its payload, unique per `(cartId, requestId)`, in the same transaction as the increment (5.3.1) | Not applied again; the response is the current cart [RA-4] |
-| **Inventory Receive / Remove / Count / Contain** | **Request id**, unique per `(storeId, requestId)`, stored with a request fingerprint on the stock movement. Count and Contain **additionally** use the expected `onHand` as an optimistic-concurrency check (a separate protection against stale data). Conflict responses and audit: W8. [RA-5 — revised after the second review; pending approval] | Returns the **original result** (the movement's before/after values), even if `onHand` changed since; no second movement |
+| **Inventory Receive / Remove / Count / Contain** | **Request id**, unique per `(storeId, requestId)`, stored with a request fingerprint on the stock movement. Count and Contain **additionally** use the expected `onHand` as an optimistic-concurrency check (a separate protection against stale data). Conflict responses and audit: W8. [RA-5 — revised after the second review, approved 2026-10-18] | Returns the **original result** (the movement's before/after values), even if `onHand` changed since; no second movement |
 | Order transitions, payment actions, return recording | Compare-and-set + order version | Second attempt rejected as stale; UI shows the current state |
 | Item edit (apply) | Order version + preview fingerprint | Rejected as stale |
 | Cart merge | Guest cart already `Merged` | No-op |
@@ -298,7 +298,7 @@ Every operation acquires locks in this order, which prevents deadlocks:
 
 **Scope of a request id.** Records live as long as their cart:
 - **Reassignment** to a customer keeps the cart (and its records).
-- **Merge:** the guest cart's add-request records are **carried over to the target cart** in the merge transaction, so a retry of an add that was applied before the merge is recognized and not applied twice. *(Clarification — pending approval.)*
+- **Merge:** the guest cart's add-request records are **carried over to the target cart** in the merge transaction, so a retry of an add that was applied before the merge is recognized and not applied twice. *(Clarification — approved 2026-10-18.)*
 - After a cart is **converted** or **expires**, its records are gone; a request arriving then is treated as new. Transport retries happen within seconds, so this is outside the retry window.
 
 ### 5.4 Notification delivery is separate from business idempotency
@@ -478,7 +478,7 @@ Each workflow follows the same structure: **Trigger and preconditions → Steps 
 4. **Transaction B — merge** (domain-model §6.7): check the store is `Active` (synchronized with status changes — §5.1, RA-6); lock the guest cart and the customer cart; reassign or merge (carrying over add-request records — §5.3.1); mark the guest cart `Merged`; revalidate lines. Commit.
 5. Clear the guest cart cookie; return the list of cart adjustments.
 
-**While the store is suspended:** login succeeds, but the merge is a cart write and is **not performed**. The guest cookie and guest cart are kept, and the merge is retried by the existing retry rule once the store is `Active` again. *(Clarification — pending approval with RA-6.)*
+**While the store is suspended:** login succeeds, but the merge is a cart write and is **not performed**. The guest cookie and guest cart are kept, and the merge is retried by the existing retry rule once the store is `Active` again. *(Clarification — approved 2026-10-18 with RA-6.)*
 
 **Steps — registration:** as login, but transaction A also creates the Customer and CustomerPasswordCredential (unique phone and email per store). Registration is prohibited while suspended; its status check is synchronized with status changes (§5.1, RA-6).
 
@@ -694,7 +694,7 @@ Each row is one transaction and one future test case covering all five columns.
 
 ### W8 Inventory adjustments and discrepancies
 
-**Preconditions (all):** `inventory.adjust`; variant belongs to the store; quantities are whole numbers; reason rules (domain-model §4.4); a client-generated **request id** for **every** adjustment (Receive, Remove, Count, Contain — RA-5, pending approval of the second-review revision). Count and Contain also carry the **expected `onHand`** the admin saw.
+**Preconditions (all):** `inventory.adjust`; variant belongs to the store; quantities are whole numbers; reason rules (domain-model §4.4); a client-generated **request id** for **every** adjustment (Receive, Remove, Count, Contain — RA-5, second-review revision approved 2026-10-18). Count and Contain also carry the **expected `onHand`** the admin saw.
 
 | Operation | Effect (after the idempotency step below) | Concurrency | Failure |
 |---|---|---|---|
@@ -714,7 +714,7 @@ Each row is one transaction and one future test case covering all five columns.
 
 **Shortage report (409):** variant, `onHand`, `committed`, requested result, shortage, and **affected open orders** (number, status, quantity, placement date) — produced by the read layer.
 
-**Why Count and Contain also need a request id** [RA-5 — revised after the second review; pending approval]. The expected-`onHand` comparison is an **optimistic-concurrency check**, not a duplicate-detection mechanism, so it is not relied on alone:
+**Why Count and Contain also need a request id** [RA-5 — revised after the second review, approved 2026-10-18]. The expected-`onHand` comparison is an **optimistic-concurrency check**, not a duplicate-detection mechanism, so it is not relied on alone:
 - After a **lost response**, a retried Count would fail the expected-value check (its own first application changed `onHand`) — a spurious `409` for an operation that actually succeeded.
 - If `onHand` happens to be unchanged, a retry would **apply again** and write a **second** audit movement for one logical operation.
 
@@ -740,7 +740,7 @@ A request id is therefore required for these two operations as well; it is **not
 
 **Discrepancy workflow:** detect (409) → optionally contain → resolve through order edits (W7) or cancellations (W6), each releasing `committed` → submit the Count again → marker cleared.
 
-**Idempotency** *(Receive/Remove approved; extension to Count/Contain revised 2026-10-18 — RA-5; clarified after the second review, pending approval)*
+**Idempotency** *(Receive/Remove approved; extension to Count/Contain revised 2026-10-18 — RA-5; clarified after the second review, approved 2026-10-18)*
 - **All four operations:** the request id and a request fingerprint are stored on the stock movement with a **uniqueness constraint `(storeId, requestId)`**, inserted in the **same transaction** as the stock change. Same id + same payload → **original result**, no duplicate movement. Same id + different payload → `422`.
 - A **rejected** operation (shortage, stale expected value, validation) records nothing; the request id stays unused.
 - **Separate protections:** the request id prevents double application of a retried request; the expected-`onHand` check prevents a count based on stale data from overwriting newer stock. Neither replaces the other.
@@ -852,7 +852,7 @@ The exclusive lock waits for in-flight operations synchronized with suspension t
 | Area | Immediately | Within ≤ 60 s |
 |---|---|---|
 | Order placement, order item-edit apply, customer/guest cancellation | **Blocked** — status checked in each transaction and serialized with the status change by shared/exclusive organization-and-store locks (approved) | — |
-| Cart writes (incl. merge), registrations, staff catalog/media/settings/branding writes | **Blocked** — status checked in each transaction and synchronized with the status change (mechanism per §7.4, P4-1); **no millisecond-race exception** [RA-6, pending approval] | — |
+| Cart writes (incl. merge), registrations, staff catalog/media/settings/branding writes | **Blocked** — status checked in each transaction and synchronized with the status change (mechanism per §7.4, P4-1); **no millisecond-race exception** [RA-6, approved 2026-10-18] | — |
 | Admin permissions | Filtered on the next request (§1.7 of the domain model); for prohibited writes, the status part is re-checked inside the transaction | — |
 | Public catalog pages | — | Branded "temporarily unavailable" (503, `no-store`, `Retry-After`) as cached catalog pages expire |
 | Open orders | Fulfillment continues; item edits blocked | — |
@@ -904,7 +904,7 @@ All jobs are **idempotent** (safe to re-run), process in batches, and **re-check
 | A-1 | Viewing the cart does not extend its expiry; exact rules documented | W3 |
 | A-2 | **Revised:** add-to-cart is idempotent per client request id on the server; UI disabling is an extra safeguard only | 5.3, W3 |
 | A-3 | Notifications are at-least-once via a transactional outbox; retries never repeat business operations | 5.4, W12 |
-| A-4 | **Narrowed:** shared locks on organization and store rows for placement; exclusive for status changes; global lock order. *Revised (RA-6, approved 2026-10-18): item-edit apply and customer/guest cancellation also take the shared locks; D8 preserved. Second review (2026-10-18, pending approval): all other prohibited writes must also be synchronized with suspension (P4-1).* | 5.1, 5.2 |
+| A-4 | **Narrowed:** shared locks on organization and store rows for placement; exclusive for status changes; global lock order. *Revised (RA-6, approved 2026-10-18): item-edit apply and customer/guest cancellation also take the shared locks; D8 preserved. Second review (approved 2026-10-18): all other prohibited writes must also be synchronized with suspension (P4-1).* | 5.1, 5.2 |
 | A-5 | Temporary password shown once after commit, never logged or persisted; forced change on first login; never generated for a reused identity | W1 |
 
 ### 7.2 Assumptions RA-1 to RA-8
@@ -916,9 +916,9 @@ All eight were first approved on 2026-10-18 (previous wording: [change record §
 | **RA-1** | **Operator identity:** there are no operator accounts in the MVP, and none are introduced. Operator commands require an operator name or ID, recorded as the actor of every relevant audit event. It is a **declared identity, not independently authenticated proof of identity**, and is **not** a replacement for authentication or authorization — who may run operator commands is controlled by access to the operator environment. Each command records the **operation, timestamp, outcome, and actor** where applicable: successes in the same transaction; refusals and failures separately (mechanism: P4-2). | Audit events need an actor; refused attempts must also be visible | W1, W11; domain-model §1.14 | Approved with clarification (second review, 2026-10-18) |
 | **RA-2** | **Disabled staff identity during provisioning:** provisioning is refused; re-enabling the identity is a separate, explicit, audited operation. Access is never restored silently. | Reusing a disabled identity would silently re-grant access | W1; domain-model §1.15 | Approved (second review, 2026-10-18) |
 | **RA-3** | **All stores, including single-locale stores, use the locale prefix**; `/` redirects to the store's default locale **without** inspecting the browser's language. Redirect and cache behavior are **deterministic**; cache keys include the store identity, locale, path, and any other response-affecting context (4.3, 4.4). | Uniform routing; deterministic, cacheable behavior | 4.3, 4.4; requirements §6 | Approved with clarification (second review, 2026-10-18) |
-| **RA-4** | **A repeated add-to-cart request returns the current cart**, not a stored copy of the original response. Idempotency is guaranteed by the **server-side `(cartId, requestId)` record**, not by the response; the contract for intentional adds, transport retries, duplicate and concurrent submissions, payload conflicts, rejected originals, and merges is defined in 5.3.1. | The cart may have changed since; the response must not be mistaken for the guarantee | 5.3.1, W3; domain-model §6.4, §6.11 | Approved with clarification (second review, 2026-10-18); merge carry-over pending approval |
-| **RA-5** | *(Revised after the second review.)* **Count and Contain require a request id** (`(storeId, requestId)`), because the expected-`onHand` comparison is an optimistic-concurrency check and cannot by itself tell a retry from a stale request. Replays return the original result; different payloads → `422`; stale expected value → `409` with current values; below `committed` → `409` shortage report; every applied adjustment writes exactly one movement; replays and rejections write none. Operations with a demonstrably safe alternative do not use request ids. Remaining choices: P4-5, P4-6. | Retries must not double-apply, fail spuriously, or duplicate audit records | 5.3, W8; domain-model §4.4; requirements §8.5 | **Revised — pending approval** |
-| **RA-6** | *(Revised after the second review.)* **No operation prohibited while suspended may commit after a suspension commits** — no millisecond-race exception. Order placement, item-edit apply, and customer/guest cancellation keep their approved shared organization/store locks; **cart writes (incl. merge), registrations, and staff catalog/media/settings/branding writes** must be synchronized with status changes too (mechanism: P4-1). **D8 preserved:** existing-order fulfillment and the staff operations D8 permits remain available, subject to permissions, workflow rules, stock invariants, and audit logging, and need no synchronization. The earlier wording accepting races for cart writes, registrations, and catalog/settings writes is **withdrawn**. | Prohibited operations must not bypass suspension; permitted operations must not be blocked | 5.1, W4, W11; domain-model §1.6; requirements §22 item 16 | **Revised — pending approval** |
+| **RA-4** | **A repeated add-to-cart request returns the current cart**, not a stored copy of the original response. Idempotency is guaranteed by the **server-side `(cartId, requestId)` record**, not by the response; the contract for intentional adds, transport retries, duplicate and concurrent submissions, payload conflicts, rejected originals, and merges is defined in 5.3.1. | The cart may have changed since; the response must not be mistaken for the guarantee | 5.3.1, W3; domain-model §6.4, §6.11 | Approved with clarification (second review, 2026-10-18), including the merge carry-over |
+| **RA-5** | *(Revised after the second review.)* **Count and Contain require a request id** (`(storeId, requestId)`), because the expected-`onHand` comparison is an optimistic-concurrency check and cannot by itself tell a retry from a stale request. Replays return the original result; different payloads → `422`; stale expected value → `409` with current values; below `committed` → `409` shortage report; every applied adjustment writes exactly one movement; replays and rejections write none. Operations with a demonstrably safe alternative do not use request ids. Remaining choices: P4-5, P4-6. | Retries must not double-apply, fail spuriously, or duplicate audit records | 5.3, W8; domain-model §4.4; requirements §8.5 | **Approved as revised (second review, 2026-10-18)** |
+| **RA-6** | *(Revised after the second review.)* **No operation prohibited while suspended may commit after a suspension commits** — no millisecond-race exception. Order placement, item-edit apply, and customer/guest cancellation keep their approved shared organization/store locks; **cart writes (incl. merge), registrations, and staff catalog/media/settings/branding writes** must be synchronized with status changes too (mechanism: P4-1). **D8 preserved:** existing-order fulfillment and the staff operations D8 permits remain available, subject to permissions, workflow rules, stock invariants, and audit logging, and need no synchronization. The earlier wording accepting races for cart writes, registrations, and catalog/settings writes is **withdrawn**. | Prohibited operations must not bypass suspension; permitted operations must not be blocked | 5.1, W4, W11; domain-model §1.6; requirements §22 item 16 | **Approved as revised (second review, 2026-10-18)** — D8 preserved |
 | **RA-7** | **Cache keys use an allow-list of response-affecting query parameters** (`page`, `sort`, `q`, …); tracking parameters (`utm_*`, `fbclid`) are ignored. Keys also include the **store identity, locale, path, and any other response-affecting context**; one store's cached response is never served to another. Configured with the shared cache; first needed for catalog pages (M4). **Not an M1 prerequisite** — M1 only requires that public responses do not depend on query parameters. | Fewer cache variants; resists cache poisoning; strict tenant isolation | 4.4 | Approved with clarification (second review, 2026-10-18) |
 | **RA-8** | **PostgreSQL is the selected database** ([ADR-02](architecture-decisions.md#adr-02-database-and-data-access), approved) — not an open question. Its primitives (shared/exclusive row locks, conditional updates, `ON CONFLICT`) underpin the guarantees here, and every concurrency guarantee is verified by integration tests against **real PostgreSQL** — never an in-memory provider or SQLite. The **detailed** concurrency design (transaction boundaries, optimistic concurrency, row-level locking, stock invariants and overselling prevention, suspension races) is finalized in the architecture phase (§7.4). | Behavior here relies on specific database semantics | 5.1; requirements §11.4 | Approved with clarification (second review, 2026-10-18) |
 
