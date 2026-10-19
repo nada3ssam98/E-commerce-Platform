@@ -525,13 +525,13 @@ Emails never contain passwords; reset links use the store's primary host (requir
 |---|---|---|
 | .NET SDK | 10.0 (LTS), one SDK feature band | `global.json` (`rollForward: latestPatch`) |
 | NuGet packages | Exact versions | Central package management + `RestorePackagesWithLockFile=true`; committed `packages.lock.json`; CI runs `dotnet restore --locked-mode` |
-| Node.js | Baseline **24 LTS, ≥ 24.13.1** (Angular 22 minimum; supported to 2028-04-30) | `.nvmrc` + `engines` in `package.json`; CI uses the same file |
-| Angular | Baseline **22.x** (current major, released June 2026), with the TypeScript version Angular 22 requires | Exact versions in `package.json` |
-
-**Node/Angular selection rule (approved 2026-10-18):** at M0 start, choose an Angular major and a Node.js version that are **listed together in Angular's official version-compatibility table**, preferring a Node LTS line. Do **not** select Node 26 merely because it becomes LTS (2026-10-28); move to it only if the official table supports it for the chosen Angular major and there is a concrete reason. The chosen pair and the table checked are recorded in the M0 pull request.
+| Node.js | **24.15.0** (24 LTS, supported to 2028-04-30) with npm **11.12.1**. Angular 22 requires `^22.22.3 \|\| ^24.15.0 \|\| ^26.0.0` *(corrected 2026-10-19 from "≥ 24.13.1"; verified against Angular's compatibility table and the `engines` field of `@angular/core` 22.2.3)* | `.nvmrc` + `engines` in `package.json` (root and `/frontend`), `engine-strict=true`; CI uses the same file |
+| Angular | **22.2.3**, with **TypeScript 6.0.3** (Angular 22: `>=6.0.0 <6.1.0`) and **RxJS 7.8.2** (`^6.5.3 \|\| ^7.4.0`) *(chosen 2026-10-19, M0 step 4)* | Exact versions in `frontend/package.json` |
 | npm dependencies | Exact versions | `save-exact=true` in `.npmrc`; committed `package-lock.json`; CI runs `npm ci` |
 | Playwright | **1.62.x** | Exact version; browsers installed by CI with the matching version |
 | Contract generator | **openapi-typescript 7.13.0** | Exact version (ADR-03) |
+
+**Node/Angular selection rule (approved 2026-10-18):** at M0 start, choose an Angular major and a Node.js version that are **listed together in Angular's official version-compatibility table**, preferring a Node LTS line. Do **not** select Node 26 merely because it becomes LTS (2026-10-28); move to it only if the official table supports it for the chosen Angular major and there is a concrete reason. The chosen pair and the table checked are recorded in the M0 pull request. *Applied 2026-10-19: Node 24.15.0 + Angular 22.2.3 from the table row for Angular 22 (Node `^22.22.3 \|\| ^24.15.0 \|\| ^26.0.0`); recorded in commit `a634721` (pins) and the M0 step 4 pull request.*
 
 Upgrades are deliberate pull requests that update the pin, the lockfile, and the generated contracts together.
 
