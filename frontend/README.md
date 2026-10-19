@@ -20,6 +20,14 @@ npm run test:all          # unit tests (Vitest, Angular CLI default)
 npm run serve:ssr:storefront   # after build: http://localhost:4000/en/ and /ar/
 npx ng serve storefront   # dev server, English; Arabic: npx ng serve storefront -c development-ar
 npx ng extract-i18n storefront # refresh projects/storefront/src/locale/messages.xlf, then update messages.ar.xlf
+npm run contracts:generate   # regenerate @platform/api-contracts types from ../contracts/openapi.json
+npm run contracts:check      # fails when the committed types do not match the contract
 ```
+
+## API contracts
+
+`@platform/api-contracts` holds TypeScript types generated from `contracts/openapi.json` (ADR-03); `schema.d.ts` is never edited by hand. Features call the API through thin `HttpClient` services typed with `JsonResponse<path, method, status>`, so a contract change that breaks a call fails the build.
+
+> **Temporary:** until the backend generates `contracts/openapi.json`, the file is a hand-written stand-in covering only the health endpoints that exist on `main` (see `contracts/README.md`).
 
 The SSR server accepts only allow-listed hosts (`localhost`, `*.localhost` for local development — ADR-04 rule 6).

@@ -249,6 +249,26 @@
           }
         }
       }
+    },
+    "api-contracts": {
+      "projectType": "library",
+      "root": "projects/api-contracts",
+      "sourceRoot": "projects/api-contracts/src",
+      "prefix": "lib",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:ng-packagr",
+          "configurations": {
+            "production": {
+              "tsConfig": "projects/api-contracts/tsconfig.lib.prod.json"
+            },
+            "development": {
+              "tsConfig": "projects/api-contracts/tsconfig.lib.json"
+            }
+          },
+          "defaultConfiguration": "production"
+        }
+      }
     }
   }
 }

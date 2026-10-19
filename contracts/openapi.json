@@ -1,0 +1,82 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Platform API",
+    "version": "0.0.0-temporary",
+    "description": "TEMPORARY hand-written stand-in. ADR-03 requires this file to be generated from the API at build time; the backend generation (M0 step 5, backend part) replaces it. It describes only endpoints that exist on main (backend PR #15): the health endpoints."
+  },
+  "x-platform-temporary": true,
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Liveness: the API process answers. No dependency is checked.",
+        "responses": {
+          "200": {
+            "description": "The process is running.",
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/X-Request-Id" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health/ready": {
+      "get": {
+        "operationId": "getReadiness",
+        "summary": "Readiness: the database is reachable with the application's credentials.",
+        "responses": {
+          "200": {
+            "description": "Ready (Healthy or Degraded).",
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/X-Request-Id" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+              }
+            }
+          },
+          "503": {
+            "description": "Not ready (Unhealthy).",
+            "headers": {
+              "X-Request-Id": { "$ref": "#/components/headers/X-Request-Id" }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthStatus": {
+        "type": "string",
+        "enum": ["Healthy", "Degraded", "Unhealthy"]
+      },
+      "HealthResponse": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "$ref": "#/components/schemas/HealthStatus" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "headers": {
+      "X-Request-Id": {
+        "description": "Identifier of the request, also used in logs and error responses.",
+        "schema": { "type": "string" }
+      }
+    }
+  }
+}

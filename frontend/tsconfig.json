@@ -4,6 +4,7 @@
   "compileOnSave": false,
   "compilerOptions": {
     "paths": {
+      "@platform/api-contracts": ["./projects/api-contracts/src/public-api.ts"],
       "@platform/design-system": ["./projects/design-system/src/public-api.ts"],
       "@platform/i18n": ["./projects/i18n/src/public-api.ts"]
     },
@@ -48,6 +49,12 @@
     },
     {
       "path": "./projects/i18n/tsconfig.spec.json"
+    },
+    {
+      "path": "./projects/api-contracts/tsconfig.lib.json"
+    },
+    {
+      "path": "./projects/api-contracts/tsconfig.spec.json"
     }
   ]
 }
