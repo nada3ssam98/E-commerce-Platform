@@ -1,0 +1,25 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SharedKernel/Platform.SharedKernel.csproj" />
+    <Project Path="src/Infrastructure/Platform.Infrastructure.csproj" />
+    <Project Path="src/ReadModels/Platform.ReadModels.csproj" />
+    <Project Path="src/Persistence/Platform.Persistence.csproj" />
+    <Project Path="src/Api/Platform.Api.csproj" />
+    <Project Path="src/Cli/Platform.Cli.csproj" />
+    <Project Path="src/AppHost/Platform.AppHost.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/Store/Platform.Modules.Store.csproj" />
+    <Project Path="src/Modules/Media/Platform.Modules.Media.csproj" />
+    <Project Path="src/Modules/Catalog/Platform.Modules.Catalog.csproj" />
+    <Project Path="src/Modules/Inventory/Platform.Modules.Inventory.csproj" />
+    <Project Path="src/Modules/Customers/Platform.Modules.Customers.csproj" />
+    <Project Path="src/Modules/Cart/Platform.Modules.Cart.csproj" />
+    <Project Path="src/Modules/Ordering/Platform.Modules.Ordering.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TestSupport/Platform.TestSupport.csproj" />
+    <Project Path="tests/ArchitectureTests/Platform.ArchitectureTests.csproj" />
+    <Project Path="tests/IntegrationTests/Platform.IntegrationTests.csproj" />
+  </Folder>
+</Solution>

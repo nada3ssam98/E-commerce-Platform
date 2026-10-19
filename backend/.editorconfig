@@ -1,0 +1,5 @@
+root = false
+
+# EF Core migrations are generated; their SQL is reviewed in the pull request instead (ADR-02).
+[**/Migrations/*.cs]
+generated_code = true

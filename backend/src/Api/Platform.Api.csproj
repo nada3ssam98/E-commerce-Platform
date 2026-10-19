@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- Storefront and admin HTTP API host (ADR-01). Endpoints, health checks, and the request pipeline arrive in later M0 steps. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\ReadModels\Platform.ReadModels.csproj" />
+    <ProjectReference Include="..\Persistence\Platform.Persistence.csproj" />
+  </ItemGroup>
+
+</Project>

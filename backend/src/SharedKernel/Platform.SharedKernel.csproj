@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Value types and primitives shared by all modules (implementation-plan §4.1).
+       No EF Core, ASP.NET Core, I/O, or domain rules. Empty until the first shared type is needed. -->
+
+</Project>

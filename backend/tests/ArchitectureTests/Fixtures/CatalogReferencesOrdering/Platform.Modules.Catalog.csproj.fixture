@@ -1,0 +1,10 @@
+<!-- Deliberate violation fixture for M0-12 (not built): Catalog must not reference Ordering (a cycle). -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Modules\Store\Platform.Modules.Store.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Media\Platform.Modules.Media.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Ordering\Platform.Modules.Ordering.csproj" />
+  </ItemGroup>
+
+</Project>

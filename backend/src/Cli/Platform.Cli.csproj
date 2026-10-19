@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Operator CLI host (ADR-01). No commands in M0; operator commands arrive in M1. -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ReadModels\Platform.ReadModels.csproj" />
+    <ProjectReference Include="..\Persistence\Platform.Persistence.csproj" />
+  </ItemGroup>
+
+</Project>

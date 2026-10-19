@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Read-only views combining domains; owns no business rules and never changes state (system-behavior §1 rule 2). -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\Modules\Store\Platform.Modules.Store.csproj" />
+    <ProjectReference Include="..\Modules\Media\Platform.Modules.Media.csproj" />
+    <ProjectReference Include="..\Modules\Catalog\Platform.Modules.Catalog.csproj" />
+    <ProjectReference Include="..\Modules\Inventory\Platform.Modules.Inventory.csproj" />
+    <ProjectReference Include="..\Modules\Customers\Platform.Modules.Customers.csproj" />
+    <ProjectReference Include="..\Modules\Cart\Platform.Modules.Cart.csproj" />
+    <ProjectReference Include="..\Modules\Ordering\Platform.Modules.Ordering.csproj" />
+  </ItemGroup>
+
+</Project>
