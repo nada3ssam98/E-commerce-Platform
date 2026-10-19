@@ -24,23 +24,16 @@
                 "input": "projects/storefront/public"
               }
             ],
-            "styles": [
-              "projects/storefront/src/styles.css"
-            ],
+            "styles": ["projects/storefront/src/styles.css"],
             "server": "projects/storefront/src/main.server.ts",
             "outputMode": "server",
             "security": {
-              "allowedHosts": [
-                "localhost",
-                "*.localhost"
-              ]
+              "allowedHosts": ["localhost", "*.localhost"]
             },
             "ssr": {
               "entry": "projects/storefront/src/server.ts"
             },
-            "polyfills": [
-              "@angular/localize/init"
-            ],
+            "polyfills": ["@angular/localize/init"],
             "localize": true
           },
           "configurations": {
@@ -63,17 +56,13 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true,
-              "localize": [
-                "en"
-              ]
+              "localize": ["en"]
             },
             "development-ar": {
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true,
-              "localize": [
-                "ar"
-              ]
+              "localize": ["ar"]
             }
           },
           "defaultConfiguration": "production"
@@ -102,6 +91,13 @@
             "buildTarget": "storefront:build",
             "outputPath": "projects/storefront/src/locale",
             "format": "xlf"
+          }
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": ["projects/storefront/**/*.ts", "projects/storefront/**/*.html"],
+            "eslintConfig": "projects/storefront/eslint.config.js"
           }
         }
       },
@@ -136,12 +132,8 @@
                 "input": "projects/admin/public"
               }
             ],
-            "styles": [
-              "projects/admin/src/styles.css"
-            ],
-            "polyfills": [
-              "@angular/localize/init"
-            ]
+            "styles": ["projects/admin/src/styles.css"],
+            "polyfills": ["@angular/localize/init"]
           },
           "configurations": {
             "production": {
@@ -189,6 +181,13 @@
             "outputPath": "projects/admin/src/locale",
             "format": "xlf"
           }
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": ["projects/admin/**/*.ts", "projects/admin/**/*.html"],
+            "eslintConfig": "projects/admin/eslint.config.js"
+          }
         }
       },
       "i18n": {
@@ -221,6 +220,16 @@
             }
           },
           "defaultConfiguration": "production"
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": [
+              "projects/design-system/**/*.ts",
+              "projects/design-system/**/*.html"
+            ],
+            "eslintConfig": "projects/design-system/eslint.config.js"
+          }
         }
       }
     },
@@ -247,6 +256,13 @@
           "options": {
             "tsConfig": "projects/i18n/tsconfig.spec.json"
           }
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": ["projects/i18n/**/*.ts", "projects/i18n/**/*.html"],
+            "eslintConfig": "projects/i18n/eslint.config.js"
+          }
         }
       }
     },
@@ -267,6 +283,16 @@
             }
           },
           "defaultConfiguration": "production"
+        },
+        "lint": {
+          "builder": "@angular-eslint/builder:lint",
+          "options": {
+            "lintFilePatterns": [
+              "projects/api-contracts/**/*.ts",
+              "projects/api-contracts/**/*.html"
+            ],
+            "eslintConfig": "projects/api-contracts/eslint.config.js"
+          }
         }
       }
     }
