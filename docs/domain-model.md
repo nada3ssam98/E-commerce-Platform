@@ -395,8 +395,9 @@ A minimal, **append-only**, platform-wide record of sensitive **platform-operato
 | `actor` | ✅ | Operator name or ID supplied to the command (no operator accounts in the MVP — [system-behavior RA-1](system-behavior.md#72-assumptions-ra-1-to-ra-8)). It is a **declared identity, not independently authenticated proof of identity**, and **not** a replacement for authentication or authorization; accountability relies on controlling who can run operator commands. |
 | `action` | ✅ | See below |
 | `outcome` | ✅ | `Succeeded`, `Refused`, or `Failed` *(added 2026-10-18 — RA-1 second review)* |
-| `reasonCode` | — | For `Refused` / `Failed`, e.g., `StaffUserDisabled`, `ActivationPreconditionMissing`, `ValidationFailed` — never sensitive values |
-| `targetType`, `targetId` | ✅ | e.g., `Store`, `Organization`, `StaffUser`, `StoreMembership` |
+| `reasonCode` | — | For `Refused` / `Failed`. Initial M1 list *(P4-2, approved 2026-10-19)*: `ValidationFailed`, `StaffUserDisabled`, `ActivationPreconditionMissing`, `HandleUnavailable`, `InvalidStatusTransition` (`Refused`); `UnexpectedError`, `OutcomeUnknown` (`Failed`). Codes are added with the milestone that needs them — never sensitive values |
+| `targetType` | ✅ | e.g., `Store`, `Organization`, `StaffUser`, `StoreMembership` |
+| `targetId` | ✅ for `Succeeded` | For `Refused` / `Failed`: recorded when the attempted target is known; omitted only when no valid target can be identified *(P4-2, approved 2026-10-19)* |
 | `storeId` | — | When the action concerns a store |
 | `details` | — | **Non-sensitive** before/after context (e.g., status before/after, role granted) |
 | `reason` | — | Free text where relevant (e.g., suspension) |
@@ -405,7 +406,7 @@ A minimal, **append-only**, platform-wide record of sensitive **platform-operato
 
 **Rules**
 - **Successful** actions (`outcome = Succeeded`) are written **in the same transaction** as the action they record.
-- **Refused or failed** operator commands are recorded too (`Refused` / `Failed` with a reason code). Because the business transaction rolls back, this record is written separately; the mechanism is decided in the architecture phase ([system-behavior §7.4](system-behavior.md#74-items-deferred-to-the-architecture-phase), P4-2). *(Added 2026-10-18 — RA-1 second review.)*
+- **Refused or failed** operator commands are recorded too (`Refused` / `Failed` with a reason code). Because the business transaction rolls back, exactly one event is written in a **separate transaction** after the rollback (or instead of it, when the refusal is detected before it starts). `action` is the action the command attempted; `outcome` distinguishes it from a success. A command without an operator identifier writes no event, because `actor` is required. If the audit record cannot be persisted, the command fails visibly (error log, console warning, non-zero exit) — see [system-behavior W1](system-behavior.md#w1-store-provisioning-and-activation). *(Added 2026-10-18 — RA-1 second review; mechanism P4-2, approved 2026-10-19.)*
 - **Never** contains passwords, password hashes, temporary passwords, session or reset tokens, or other secrets.
 - Never updated or deleted.
 
