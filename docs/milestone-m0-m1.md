@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **Scope approved** (2026-10-18; M1-D1–M1-D5 approved) · **implementation blocked** until the gates in §1 are met |
+| **Status** | **Scope approved** (2026-10-18; M1-D1–M1-D5 approved) · **gates G1–G3 met** (G3 verified 2026-10-19) — M0 proceeds step by step per §1a |
 | **Last updated** | 2026-10-18 (review decisions recorded; ADR-04 revision 4) |
 | **Depends on** | [architecture-decisions.md](architecture-decisions.md) — ADR-01–03, 05, 11, X approved; ADR-04 revision 4 approved 2026-10-18 — and requirements v1.9 (approved) |
 
@@ -22,7 +22,7 @@
 |---|---|---|
 | **G1** | **ADR-04 revision 4 reviewed and approved** (separate credentials, network binding, tests TH-1–TH-14) | ✅ Approved 2026-10-18 — revision 4 as merged to `main` (commit `849fe35`, merge `c9edca5`) |
 | **G2** | Planning documents consistent (requirements, domain model, system behavior, ADRs, change record, roadmap, this document) | ✅ Complete — reconciled and merged to `main` via PR #3 (merge `c9edca5`) |
-| **G3** | **Branch protection on `main`** configured by the repository owner: pull request required (**0 required approvals** — solo-developer project), no direct pushes, no force pushes, no deletion, no bypass. *(Required CI status checks are added in M0, once the workflow exists and its check names are stable — M0-17.)* | ❌ **Not configured** — checked 2026-10-18 via the GitHub API: `main` has `protection.enabled: false`, no active rules, no rulesets. Re-checked 2026-10-19: still not protected, no rulesets. Pending owner action and confirmation. |
+| **G3** | **Branch protection on `main`** configured by the repository owner: pull request required (**0 required approvals** — solo-developer project), no direct pushes, no force pushes, no deletion, no bypass. *(Required CI status checks are added in M0, once the workflow exists and its check names are stable — M0-17.)* | ✅ **Configured and verified 2026-10-19** (read-only GitHub API check): classic protection rule on `main` — pull request required, `required_approving_review_count: 0`, `enforce_admins` on (no bypass), force pushes and deletions disabled, no push or bypass allowances, no required status checks yet (added at M0-17). Direct-push rejection follows from this configuration; it was not exercised with a live push. |
 
 **Prerequisites:**
 
