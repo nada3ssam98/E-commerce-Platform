@@ -9,6 +9,9 @@
          not from a separately installed Aspire CLI bundle. -->
     <AspireUseCliBundle>false</AspireUseCliBundle>
     <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+    <!-- No lock file: the Aspire SDK selects dashboard/orchestration packages by host OS (win-x64, linux-x64, …),
+         so one lock file cannot serve every developer machine and CI. Versions stay exact via central package management. -->
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
   </PropertyGroup>
 
   <ItemGroup>

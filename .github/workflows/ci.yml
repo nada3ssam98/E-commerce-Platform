@@ -1,0 +1,40 @@
+# Minimal backend CI, brought forward from M0 step 6 (owner-approved 2026-10-19) so that the
+# real-PostgreSQL tests of M0 step 2 (M0-11) run where a container runtime exists.
+# Step 6 extends this workflow (frontend, drift check, scans, E2E) and adds required status checks (M0-17).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend build and tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      # PostgreSQL tests must run here: a missing container runtime fails the job instead of skipping.
+      PLATFORM_REQUIRE_DOCKER: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - name: Restore (locked)
+        run: dotnet restore backend/Platform.slnx --locked-mode
+
+      - name: Build
+        run: dotnet build backend/Platform.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --solution backend/Platform.slnx --configuration Release --no-build
