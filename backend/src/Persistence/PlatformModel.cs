@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Platform.Infrastructure.Persistence;
 using Platform.Modules.Cart;
 using Platform.Modules.Catalog;
@@ -42,11 +43,20 @@ public static class PlatformModel
             npgsql => npgsql.MigrationsAssembly(typeof(PlatformModel).Assembly.GetName().Name));
     }
 
-    /// <summary>Registers <see cref="PlatformDbContext"/> (scoped) with the complete module set.</summary>
-    public static IServiceCollection AddPlatformPersistence(this IServiceCollection services, string connectionString)
+    /// <summary>
+    /// Registers <see cref="PlatformDbContext"/> (scoped) with the complete module set. The connection string is
+    /// validated when the host starts, so a missing or invalid value stops startup (M0-9).
+    /// </summary>
+    public static IServiceCollection AddPlatformPersistence(this IServiceCollection services, string? connectionString)
     {
+        services.AddOptions<PlatformDatabaseOptions>()
+            .Configure(options => options.ConnectionString = connectionString)
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<PlatformDatabaseOptions>, PlatformDatabaseOptionsValidator>();
+
         services.AddSingleton(Assemblies);
-        services.AddDbContext<PlatformDbContext>(options => options.UsePlatformNpgsql(connectionString));
+        services.AddDbContext<PlatformDbContext>((provider, options) =>
+            options.UsePlatformNpgsql(provider.GetRequiredService<IOptions<PlatformDatabaseOptions>>().Value.ConnectionString!));
         return services;
     }
 

@@ -23,6 +23,7 @@ public static class ApprovedProjectGraph
     {
         ["Platform.SharedKernel"] = [],
         ["Platform.Infrastructure"] = ["Platform.SharedKernel"],
+        ["Platform.ServiceDefaults"] = ["Platform.SharedKernel"],
         [Store] = ["Platform.Infrastructure"],
         [Media] = [Store],
         [Catalog] = [Store, Media],
@@ -32,7 +33,7 @@ public static class ApprovedProjectGraph
         [Ordering] = [Cart, Catalog, Inventory, Customers, Media],
         ["Platform.ReadModels"] = [.. Modules],
         ["Platform.Persistence"] = ["Platform.Infrastructure", .. Modules],
-        ["Platform.Api"] = ["Platform.ReadModels", "Platform.Persistence"],
+        ["Platform.Api"] = ["Platform.ServiceDefaults", "Platform.ReadModels", "Platform.Persistence"],
         ["Platform.Cli"] = ["Platform.ReadModels", "Platform.Persistence"],
         ["Platform.AppHost"] = ["Platform.Api"],
     };

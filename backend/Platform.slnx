@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/SharedKernel/Platform.SharedKernel.csproj" />
     <Project Path="src/Infrastructure/Platform.Infrastructure.csproj" />
+    <Project Path="src/ServiceDefaults/Platform.ServiceDefaults.csproj" />
     <Project Path="src/ReadModels/Platform.ReadModels.csproj" />
     <Project Path="src/Persistence/Platform.Persistence.csproj" />
     <Project Path="src/Api/Platform.Api.csproj" />
