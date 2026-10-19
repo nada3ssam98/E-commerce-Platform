@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **Draft — pending your review.** Completes the Phase 4 planning: repository and project structure, module boundaries, enforcement rules, the remaining Phase 4 decisions, and the milestone plan. **Nothing here changes an approved decision.** |
+| **Status** | **Draft — pending your review.** *(2026-10-19: P4-3, P4-4, P4-6, P4-7 (b)(c), T-1, T-2 and the roadmap approved — recorded in PR #11; P4-5 held.)* Completes the Phase 4 planning: repository and project structure, module boundaries, enforcement rules, the remaining Phase 4 decisions, and the milestone plan. **Nothing here changes an approved decision.** |
 | **Last updated** | 2026-10-19 |
 | **Phase** | 4 — Architecture (completion) |
 | **Based on** | `main` at `2e9ad78`: [requirements.md](requirements.md) v1.9, [domain-model.md](domain-model.md), [system-behavior.md](system-behavior.md), [architecture-decisions.md](architecture-decisions.md), [roadmap.md](roadmap.md), [milestone-m0-m1.md](milestone-m0-m1.md), [ui-design.md](ui-design.md) (draft) |
@@ -66,15 +66,15 @@ No other contradiction between approved decisions was found. ADR-02's placement-
 | B-2 | P4-1 and P4-2 approved but not on `main` | M1 | Owner reviews and merges PR #8 and PR #9 |
 | B-3 | **How modules share persistence** is undefined: ADR-01 has one project per domain plus `Infrastructure`; P4-1's EF Core rule 1 (PR #8) requires **one `DbContext` per operation**, and placement spans Cart, Inventory, Ordering, and Store in one transaction | M0 step 2 (empty projects, initial migration) | **[TECH]** §6: one `PlatformDbContext` type in `Infrastructure`, model contributed by each module, migrations in a top-level `Persistence` project |
 | B-4 | **Where shared auth, audit, outbox, email templates, reconciliation, and the suspension guard live** — not in the approved dependency graph | M0 step 2 (project graph) | **[TECH]** §5 |
-| B-5 | **UI string translation mechanism** not decided (requirements §6 and ui-design §5 fix the behavior, not the mechanism) | M0 step 4 (workspace), M1 (shell, status pages) | **[PROPOSED]** T-1 (§3.2) |
-| B-6 | P4-4 scope confirmation (unsupported/missing locale prefixes) | M1 locale routing | **[PROPOSED]** §3.1 |
-| B-7 | Roadmap status "pending your review" | Plan of record after M1 | **[PROPOSED]** approve as is |
+| B-5 | **UI string translation mechanism** not decided (requirements §6 and ui-design §5 fix the behavior, not the mechanism) | M0 step 4 (workspace), M1 (shell, status pages) | **[APPROVED 2026-10-19]** (PR #11) T-1 (§3.2) |
+| B-6 | P4-4 scope confirmation (unsupported/missing locale prefixes) | M1 locale routing | **[APPROVED 2026-10-19]** (PR #11) §3.1 |
+| B-7 | Roadmap status "pending your review" | Plan of record after M1 | **[APPROVED 2026-10-19]** (PR #11) — change-controlled plan of record |
 
 ### 2.3 Gaps that are safe to resolve during implementation
 
 | # | Gap | When | Resolution |
 |---|---|---|---|
-| D-1 | Angular state management "evaluated in Phase 4" (requirements §24) — not evaluated | M2 | **[PROPOSED]** T-2 |
+| D-1 | Angular state management "evaluated in Phase 4" (requirements §24) — not evaluated | M2 | **[APPROVED 2026-10-19]** (PR #11) T-2 |
 | D-2 | API versioning not defined | M0 step 3 | **[TECH]** §8 — no version segment in the MVP |
 | D-3 | ADR-11 "or" choices: ArchUnitNET vs NetArchTest; Shouldly vs plain asserts; CsCheck vs FsCheck | M0 step 2 | **[TECH]** ArchUnitNET, Shouldly, CsCheck |
 | D-4 | Operator CLI argument parser not named | M1 | **[TECH]** `System.CommandLine` (stable 2.x; version verified when added) |
@@ -95,18 +95,18 @@ No other contradiction between approved decisions was found. ADR-02's placement-
 |---|---|---|---|---|---|---|
 | **P4-1** | Approved 2026-10-18 by the owner; PR #8 (open, not on `main`) | Synchronizing all prohibited writes with suspension | Shared org/store `FOR SHARE` locks, status read from the lock result, exclusive direct locks for row writers; EF Core rules 1–4 | Done — merge only | Yes (status-change side, EF rules) | SU-1–SU-8 |
 | **P4-2** | Approved 2026-10-19 by the owner; PR #9 (open, not on `main`) | Recording refused/failed operator commands | Separate audit transaction after rollback; `targetId` optional; audit-write failure → error log, console warning, non-zero exit | Done — merge only | Yes | AU-1–AU-6 |
-| **P4-3** | Open | Does an idempotent replay signal that it was a replay? | **[PROPOSED]** Replays return the normal response plus header `Idempotent-Replayed: true` (add-to-cart, placement, inventory adjustments). Body unchanged; clients may ignore it. Options rejected: no signal (harder to debug and test); a body field (changes contracts) | Yes | No (M5) | Replay tests assert the header on replay and its absence on first application |
-| **P4-4** | Decided for `/` by M1-D3; scope to confirm | Same status and headers for unsupported/missing prefixes? Query in `Location`? | **[PROPOSED]** 302 with `public, max-age=0, s-maxage=60` for `/`, unsupported, and missing prefixes. `Location` is a relative path in the default locale. **M1 drops the query string** (consistent with M1-15); from M4 the RA-7 allow-listed parameters are kept | Yes | **Yes** | LR-1: each redirect case asserts status, `Cache-Control`, `Location`, and no `Set-Cookie` |
-| **P4-5** | Open | Inventory fingerprint; is expected `onHand` sufficient for Count/Contain; error codes | **[PROPOSED]** Fingerprint = SHA-256 of canonical JSON `{v:1, operation, variantId, quantity or countedValue, expectedOnHand, reason, note (trimmed)}` plus the acting staff user id. Expected `onHand` **is sufficient**: a level `version` would also change on every order commit (`committed`) and reject counts on busy variants. Accepted limitation: an `onHand` change and exact reversal inside one count window is not detected, but it is visible in the movement log. Codes: `STOCK_CHANGED` (409, current values), `STOCK_SHORTAGE` (409), `REQUEST_ID_CONFLICT` (422), `VALIDATION_FAILED` (400) | Yes | No (M5) | IN-1–IN-9 plus a fingerprint-stability unit test |
-| **P4-6** | Open | Domain audit record for rejected inventory adjustments? | **[PROPOSED]** No — a structured application log entry only (request id, variant, reason code, staff user id; no personal data). W8: rejections change nothing; INV-10 covers applied changes | Yes | No (M5) | A test asserts that a rejection writes no movement and emits one log entry |
-| **P4-7** | (a) in PR #8; (b)–(d) open | Retry, timeouts, per-workflow matrix | **(b) [PROPOSED]** No global `EnableRetryOnFailure`. One transaction runner re-runs the **whole** operation (locks, status check, writes) on `40P01` and `40001` only, at most 3 attempts with jittered backoff. Then `503 SERVICE_BUSY` with `Retry-After`; the client retries with the same request id or idempotency key. `55P03` (lock timeout) is not retried and maps to the same 503. **(c) [PROPOSED]** For the application role: `lock_timeout = 5s`, `statement_timeout = 15s`, `idle_in_transaction_session_timeout = 30s`. Reconciliation runs as a separate read-only role with `statement_timeout = 120s`. **(d) [TECH]** matrix in §11, completed per milestone | Yes for (b), (c) | No (M2) | Injected `40P01` retried exactly to the limit; `23505` never retried; timeout settings asserted per role |
+| **P4-3** | Approved 2026-10-19 (PR #11) | Does an idempotent replay signal that it was a replay? | **[APPROVED]** Replays return the normal response plus header `Idempotent-Replayed: true` (add-to-cart, placement, inventory adjustments). Body unchanged; clients may ignore it. Options rejected: no signal (harder to debug and test); a body field (changes contracts) | Yes | No (M5) | Replay tests assert the header on replay and its absence on first application |
+| **P4-4** | Approved 2026-10-19 (PR #11) | Same status and headers for unsupported/missing prefixes? Query in `Location`? | **[APPROVED]** 302 with `public, max-age=0, s-maxage=60` for `/`, unsupported, and missing prefixes. `Location` is a relative path in the default locale. **M1 drops the query string** (consistent with M1-15); from M4 the RA-7 allow-listed parameters are kept | Yes | **Yes** | LR-1: each redirect case asserts status, `Cache-Control`, `Location`, and no `Set-Cookie` |
+| **P4-5** | **Held** — conflict found on 2026-10-19 (see Recommendation) | Inventory fingerprint; is expected `onHand` sufficient for Count/Contain; error codes | **[PROPOSED]** Fingerprint = SHA-256 of canonical JSON `{v:1, operation, variantId, quantity or countedValue, expectedOnHand, reason, note (trimmed)}` plus the acting staff user id. Expected `onHand` **is sufficient**: a level `version` would also change on every order commit (`committed`) and reject counts on busy variants. Accepted limitation: an `onHand` change and exact reversal inside one count window is not detected, but it is visible in the movement log. Codes: `STOCK_CHANGED` (409, current values), `STOCK_SHORTAGE` (409), `REQUEST_ID_CONFLICT` (422), `VALIDATION_FAILED` (400). *Conflict: W8 approves `422` for business-rule rejections (limit exceeded; Contain with a counted value not below committed), and its fingerprint field list has no actor — awaiting the owner's answer* | Yes | No (M5) | IN-1–IN-9 plus a fingerprint-stability unit test |
+| **P4-6** | Approved 2026-10-19 (PR #11) | Domain audit record for rejected inventory adjustments? | **[APPROVED]** No — a structured application log entry only (request id, variant, reason code, staff user id; no personal data). W8: rejections change nothing; INV-10 covers applied changes | Yes | No (M5) | A test asserts that a rejection writes no movement and emits one log entry |
+| **P4-7** | (a) in PR #8; (b), (c) approved 2026-10-19 (PR #11); (d) open | Retry, timeouts, per-workflow matrix | **(b) [APPROVED]** No global `EnableRetryOnFailure`. One transaction runner re-runs the **whole** operation (locks, status check, writes) on `40P01` and `40001` only, at most 3 attempts with jittered backoff. Then `503 SERVICE_BUSY` with `Retry-After`; the client retries with the same request id or idempotency key. `55P03` (lock timeout) is not retried and maps to the same 503. **(c) [APPROVED]** For the application role: `lock_timeout = 5s`, `statement_timeout = 15s`, `idle_in_transaction_session_timeout = 30s`. Reconciliation runs as a separate read-only role with `statement_timeout = 120s`. **(d) [TECH]** matrix in §11, completed per milestone | Yes for (b), (c) | No (M2) | Injected `40P01` retried exactly to the limit; `23505` never retried; timeout settings asserted per role |
 
 ### 3.2 New items found in this review
 
 | # | Question | Options | Recommendation | Approval needed | Needed by |
 |---|---|---|---|---|---|
-| **T-1** | How Angular translates UI strings | (a) Angular built-in i18n (`@angular/localize`, one build per locale, served under `/ar/` and `/en/`); (b) runtime translation library | **[PROPOSED] (a).** No runtime dependency; fits the approved locale-prefixed URLs (each prefix serves its locale's build); smallest bundles; SSR-supported. Cost: switching locale reloads the page (it is already a navigation to another URL) and adding a locale means a rebuild — acceptable, since locales are platform-defined (`ar`, `en`). Store content (names, descriptions) is data in `LocalizedText`, not affected. | Yes — affects build and deployment shape | M0 step 4 |
-| **T-2** | Angular state management | (a) signals + feature services, no store library; (b) NgRx | **[PROPOSED] (a).** Signals, `computed`, and Angular's resource APIs where stable in the pinned major; no NgRx or facade layer. The server is the source of truth; screens hold little client state. Reconsider only if a concrete cross-feature state problem appears. | Yes — requirements §24 deferred it to Phase 4 | M2 |
+| **T-1** | How Angular translates UI strings | (a) Angular built-in i18n (`@angular/localize`, one build per locale, served under `/ar/` and `/en/`); (b) runtime translation library | **[APPROVED 2026-10-19] (a).** Admin locale-build selection is decided with the admin shell (M2, UQ6). No runtime dependency; fits the approved locale-prefixed URLs (each prefix serves its locale's build); smallest bundles; SSR-supported. Cost: switching locale reloads the page (it is already a navigation to another URL) and adding a locale means a rebuild — acceptable, since locales are platform-defined (`ar`, `en`). Store content (names, descriptions) is data in `LocalizedText`, not affected. | Yes — affects build and deployment shape | M0 step 4 |
+| **T-2** | Angular state management | (a) signals + feature services, no store library; (b) NgRx | **[APPROVED 2026-10-19] (a).** Signals, `computed`, and Angular's resource APIs where stable in the pinned major; no NgRx or facade layer. The server is the source of truth; screens hold little client state. Reconsider only if a concrete cross-feature state problem appears. | Yes — requirements §24 deferred it to Phase 4 | M2 |
 
 ---
 
@@ -328,7 +328,7 @@ Covered by the approved documents and placed in §6 and §11: unique constraints
 | Validation | Built-in Minimal API validation for simple constraints (flows into OpenAPI); FluentValidation for cross-field and domain rules; duplicated rules covered by shared test vectors | [APPROVED] ADR-03 |
 | Authorization | Admin endpoints call `.RequirePermission("…")`; storefront write endpoints require the store resolved from the host and the CSRF filter | [APPROVED] ADR-05 (API shape [TECH]) |
 | Caching | Default `private, no-store`; public endpoints opt in explicitly | [APPROVED] ADR-04 §4f |
-| Idempotency | Request ids / idempotency keys in a header or body per contract; replays signal via `Idempotent-Replayed: true` | [APPROVED] mechanism; header [PROPOSED] P4-3 |
+| Idempotency | Request ids / idempotency keys in a header or body per contract; replays signal via `Idempotent-Replayed: true` | [APPROVED] mechanism; header [APPROVED] P4-3 |
 | OpenAPI | Every endpoint declares success and error responses; integration tests validate responses against `openapi.json` | [APPROVED] ADR-03 |
 
 ---
@@ -368,8 +368,8 @@ frontend/projects/
 | Business rules | None in Angular beyond UX validation; duplicated rules use shared test vectors | [APPROVED] |
 | Rendering | Catalog and status pages: server-rendered (no prerendering — host-dependent). Cart, checkout, account: client-rendered. SSR sets no cookies, forwards no browser cookies, and transfers no private data | [APPROVED] requirements §24, ADR-04 |
 | Locale and direction | URL prefix `/ar/` or `/en/`; `<html lang dir>` per locale; logical CSS properties only (lint rule); mixed-language values get their own `lang`/`dir` | [APPROVED] requirements §6, ui-design §5 |
-| UI strings | Angular built-in i18n, one build per locale | [PROPOSED] T-1 |
-| State | Signals + feature services | [PROPOSED] T-2 |
+| UI strings | Angular built-in i18n, one build per locale | [APPROVED] T-1 |
+| State | Signals + feature services | [APPROVED] T-2 |
 | States | Every data view implements loading (skeleton), empty, error (Problem Details `code` → localized message), and unauthorized states. Admin: 401 → login, 403 → permission page, 404 → not found; `STORE_NOT_ACTIVE` → banner | [TECH] per ui-design §8 |
 | Configuration | Browser builds contain no secrets and no internal URLs (relative `/api` only). The SSR server reads its two keys and `INTERNAL_API_BASE_URL` from environment variables, validated at startup, with no API edge key setting (TH-14) | [APPROVED] ADR-04 |
 | Design system | Angular CDK for behavior, own components on tokens; Angular Material in admin only; Storybook | [PROPOSED] in ui-design §2 (Phase 5 review) |
@@ -425,7 +425,7 @@ frontend/projects/
 
 ## 12. Milestone plan
 
-**[APPROVED]** milestone order and scope: [roadmap.md](roadmap.md) (the roadmap as a whole is pending your review) and [milestone-m0-m1.md](milestone-m0-m1.md) (M0/M1 scope approved). This section adds the structure, dependencies, and exit criteria; it does not move scope between milestones. Every milestone follows the approved slice shape (migration → backend operation with tests → OpenAPI → generated types → UI → E2E) and the [definition of done](milestone-m0-m1.md#definition-of-done-applies-to-m0-m1-and-every-later-milestone).
+**[APPROVED]** milestone order and scope: [roadmap.md](roadmap.md) (approved 2026-10-19 as the change-controlled plan of record — PR #11) and [milestone-m0-m1.md](milestone-m0-m1.md) (M0/M1 scope approved). This section adds the structure, dependencies, and exit criteria; it does not move scope between milestones. Every milestone follows the approved slice shape (migration → backend operation with tests → OpenAPI → generated types → UI → E2E) and the [definition of done](milestone-m0-m1.md#definition-of-done-applies-to-m0-m1-and-every-later-milestone).
 
 ### M0 — Walking skeleton
 
@@ -581,6 +581,6 @@ In order:
 
 1. **Owner:** configure G3 branch protection (B-1).
 2. **Owner:** review and merge PR #8, then PR #9 (resolve the small textual overlap in the second); update milestone prerequisite P7 to show P4-2 approved.
-3. **Owner decisions:** P4-3, P4-4 (confirmation), P4-5, P4-6, P4-7 (b)(c), T-1, T-2, and the roadmap as a whole (§3). P4-4 and T-1 block M0 step 4 and M1; the rest can follow before M2/M5.
-4. **After approval:** record the decisions in system-behavior §7.4, the requirements decision log, and ADR-11/ADR-02 as needed (one documentation PR).
+3. **Owner decisions:** P4-3, P4-4, P4-6, P4-7 (b)(c), T-1, T-2, and the roadmap — **approved 2026-10-19** (PR #11). **P4-5 held** pending the owner's answer on the W8 `422` conflict (needed by M5).
+4. Decisions recorded in system-behavior §7.4, the requirements decision log, and the affected texts — PR #11 (stacked on #9 → #8).
 5. **M0 step 2:** create the backend structure of §4–§6.
