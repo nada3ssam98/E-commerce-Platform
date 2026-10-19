@@ -110,8 +110,10 @@
 
 ## ADR-02 Database and data access
 
+> *Aligned 2026-10-18 with the approved suspension rule (RA-6) and decision P4-1 (system-behavior §5.1). No ADR-02 choice — PostgreSQL, EF Core 10 + Npgsql, explicit SQL for locks, READ COMMITTED — is changed.*
+
 **Constraints from approved documents** (system-behavior §5, RA-8)
-- Shared and exclusive **row locks** (placement: shared locks on organization and store rows; status changes: exclusive).
+- Shared and exclusive **row locks**: every operation prohibited while a store is suspended — order placement, item-edit apply, customer/guest cancellation, cart writes (incl. merge), customer registration, staff catalog/media/settings/branding writes — takes `FOR SHARE` on the organization row, then the store row, and reads the effective status from that statement's result; status changes, activation, and any other write that modifies the store or organization row take that row's **exclusive** lock directly (system-behavior §5.1, RA-6, P4-1).
 - **Conditional updates** (`committed + qty ≤ onHand` at write time).
 - **Unique constraints in the same transaction**, where concurrent duplicates wait and then observe the first result.
 - Read-only **consistent-snapshot** transactions (reconciliation).
@@ -136,7 +138,7 @@
 | EF Core for writes + Dapper for read layer | Fast read queries | Two data-access styles from day one; can be added later if a read query needs it |
 
 **Recommendation: EF Core 10 with Npgsql.**
-- **Locks and idempotency inserts:** a small set of explicit SQL statements (placement locks, `ON CONFLICT` idempotency records), wrapped in named repository methods and covered by concurrency tests.
+- **Locks and idempotency inserts:** a small set of explicit SQL statements (organization/store locks for prohibited writes, cart/order/inventory locks, `ON CONFLICT` idempotency records), wrapped in named repository methods and covered by concurrency tests.
 - **Conditional stock updates:** `ExecuteUpdateAsync` with the condition in `Where`; zero affected rows ⇒ insufficient stock.
 - **Optimistic concurrency:** explicit integer `version` columns configured as concurrency tokens (the domain contracts expose `version` to clients, so PostgreSQL's hidden `xmin` is not used).
 - **Migrations:** EF Core migrations; each migration's generated SQL is reviewed in the pull request, and CI applies migrations from scratch. Production applies **reviewed SQL scripts** (or migration bundles), never `Database.Migrate()` at application startup.
@@ -150,6 +152,14 @@
 5. **Row-level security:** not in the MVP (complicates platform-wide paths and pooling); optional hardening.
 
 **Transaction conventions:** READ COMMITTED with explicit locks and conditional updates; global lock order (system-behavior §5.2); reconciliation uses `REPEATABLE READ READ ONLY`.
+
+**EF Core transaction rules** *(added 2026-10-18 with P4-1; system-behavior §7.4, P4-7 (a))*
+1. **One `DbContext` and one explicit transaction per business operation.** Explicit SQL (`FromSql`, `ExecuteSql`) runs through that `DbContext`, so it shares its connection and transaction. No second `DbContext`, separate connection, or `TransactionScope` inside an operation.
+2. **Status for suspension decisions comes from the lock statement.** The effective status is read from the result of the organization/store `FOR SHARE` statement as a **non-tracking** query — a tracking query would return an already-tracked entity without refreshing its values. Never from the resolution cache.
+3. **Locks before `SaveChanges`.** All row locks are acquired explicitly, in the global lock order, before `SaveChanges`; `SaveChanges` then modifies only rows already locked or inserts new rows. (EF Core orders its own commands and cannot follow the lock order.)
+4. **No lock upgrades on organization or store rows.** A write that modifies one of these rows takes its exclusive lock directly instead of a shared lock first, still in the global lock order (e.g., a store-row writer first takes `FOR SHARE` on the organization row, then the exclusive store-row lock).
+
+Still open (system-behavior §7.4, P4-7): server-side retry policy for `40P01`/`40001` and whether Npgsql's execution strategy is used (b); `lock_timeout` / `statement_timeout` (c).
 
 | Aspect | Implication |
 |---|---|
@@ -560,11 +570,13 @@ Inputs: wildcard TLS for `*.<platform-domain>`, region latency to Egypt, **OQ2 d
 
 | Behavior relied on | PostgreSQL / .NET behavior | Spike needed? |
 |---|---|---|
-| Placement shared lock vs. suspension exclusive lock (system-behavior §5.1) | `SELECT … FOR SHARE` conflicts with the `FOR NO KEY UPDATE` lock taken by the status `UPDATE`; shared locks do not conflict with each other. The implicit `FOR KEY SHARE` from foreign-key inserts does **not** conflict with a status update — hence the explicit `FOR SHARE`. | No |
+| Shared locks of prohibited writes (placement and all P4-1 writes) vs. suspension exclusive lock (system-behavior §5.1) | `SELECT … FOR SHARE` conflicts with the `FOR NO KEY UPDATE` lock taken by the status `UPDATE`; shared locks do not conflict with each other. The implicit `FOR KEY SHARE` from foreign-key inserts does **not** conflict with a status update — hence the explicit `FOR SHARE`. | No |
 | Conditional stock commit | `ExecuteUpdateAsync` with the condition in `Where` emits `UPDATE … WHERE on_hand - committed >= @qty`; under READ COMMITTED PostgreSQL re-checks the condition on the latest row version; affected rows = 0 ⇒ insufficient stock. | No |
 | Idempotency duplicates wait, then see the first result | `INSERT … ON CONFLICT DO NOTHING` (explicit SQL) waits for the concurrent transaction; a following query returns the committed row. Using `ON CONFLICT` instead of catching `23505` avoids aborting the transaction. | No |
-| Deadlock avoidance | Global lock order; PostgreSQL aborts any residual deadlock with a retryable error (`40P01`). | No |
-| **EF Core-specific:** explicit SQL and tracked changes in one transaction | All statements must share the `DbContext`'s connection and transaction; `SaveChanges` ordering relative to explicit SQL must follow the lock order. | No — verified by **M1 integration tests** (provisioning, status changes) and **M5** (adjustments) before M7 relies on it |
+| Deadlock avoidance | Global lock order; PostgreSQL aborts any residual deadlock with a retryable error (`40P01`) — its handling is open (P4-7 (b)). | No |
+| Lock upgrade on the store or organization row | Two transactions holding `FOR SHARE` that both `UPDATE` the row deadlock; avoided because such writers lock exclusively and directly (EF Core transaction rule 4; P4-1 rule 6). | No — covered by test SU-8 |
+| Many concurrent `FOR SHARE` holders on one store row | PostgreSQL records multiple share lockers in a MultiXact; overhead acceptable at MVP scale. Fallback: transaction-level advisory locks for non-financial writes, only through a new ADR-02 revision (P4-1 rule 8). | No |
+| **EF Core-specific:** explicit SQL and tracked changes in one transaction | All statements share the `DbContext`'s connection and transaction; row locks are acquired explicitly, in the global lock order, **before** `SaveChanges` (EF Core transaction rules 1 and 3, §2c). | No — verified by **M1 integration tests** (provisioning, status changes) and **M5** (adjustments) before M7 relies on it |
 | **EF Core-specific:** global query filters vs. explicit SQL | Filters do not apply to explicit SQL. | No — enforced by review checklist and isolation tests |
 
 **Conclusion:** no spike is proposed.
