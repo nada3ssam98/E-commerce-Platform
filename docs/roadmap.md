@@ -18,7 +18,7 @@
 |---|---|---|
 | G1 | **ADR-04 revision 4 reviewed and approved** (separate edge-to-SSR, edge-to-API, and SSR-to-API credentials; network binding; tests TH-1–TH-14) | ✅ Approved 2026-10-18 (commit `849fe35`, merge `c9edca5`) |
 | G2 | Planning documents consistent | ✅ Complete — merged to `main` via PR #3 (`c9edca5`) |
-| G3 | Branch protection on `main` (PR required with 0 required approvals — solo developer; no direct/force pushes, no deletion; CI checks required once stable — M0-17) | ❌ Not configured (verified 2026-10-18 and again 2026-10-19 via GitHub API) — owner action |
+| G3 | Branch protection on `main` (PR required with 0 required approvals — solo developer; no direct/force pushes, no deletion; CI checks required once stable — M0-17) | ✅ Configured and verified 2026-10-19 via GitHub API (PR required, 0 approvals, no bypass, no force pushes or deletion; status checks added at M0-17) |
 
 Details: [milestone-m0-m1.md §1](milestone-m0-m1.md#1-gates-and-prerequisites-before-m0-starts). Once G3 is verified, M0 follows the step order in the [M0 start checklist](milestone-m0-m1.md#1a-m0-start-checklist-execution-order--begins-only-after-g3-is-verified). Architecture approval (G1) is not implementation: no application code exists yet.
 
@@ -83,7 +83,7 @@ Details: [milestone-m0-m1.md §1](milestone-m0-m1.md#1-gates-and-prerequisites-b
 
 | Item | Affects | Status |
 |---|---|---|
-| Branch protection | M0 start (G3) | Not configured — owner action |
+| Branch protection | M0 start (G3) | ✅ Configured and verified 2026-10-19; required CI checks follow at M0-17 |
 | U-5 production edge capability | First shared environment | Open |
 | ADR-12 hosting, production email provider | First shared environment | Deferred |
 | OQ3 / U-6 tax and invoicing; OQ2 data protection | Commercial launch | Launch gates |
