@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shared test fixtures (implementation-plan §4, §10). Real PostgreSQL only — never the EF Core
+       in-memory provider or SQLite for persistence tests (ADR-11). -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Persistence\Platform.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="xunit.v3.assert" />
+    <PackageReference Include="xunit.v3.extensibility.core" />
+  </ItemGroup>
+
+</Project>

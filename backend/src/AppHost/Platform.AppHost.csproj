@@ -1,0 +1,24 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.6.1">
+
+  <!-- Local development orchestration only (ADR-11); not a production deployment decision (ADR-12). -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UserSecretsId>platform-apphost-3f6b2a8e</UserSecretsId>
+    <!-- Orchestration dependencies come from the pinned NuGet packages (reproducible, ADR-11),
+         not from a separately installed Aspire CLI bundle. -->
+    <AspireUseCliBundle>false</AspireUseCliBundle>
+    <NoWarn>$(NoWarn);ASPIRE010</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Api\Platform.Api.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <!-- Security pin (see Directory.Packages.props). -->
+    <PackageReference Include="MessagePack" />
+  </ItemGroup>
+
+</Project>

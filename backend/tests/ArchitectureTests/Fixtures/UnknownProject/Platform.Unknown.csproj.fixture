@@ -1,0 +1,3 @@
+<!-- Fixture (not built): a project missing from the approved graph must be reported. -->
+<Project Sdk="Microsoft.NET.Sdk">
+</Project>

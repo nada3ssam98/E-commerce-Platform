@@ -1,0 +1,10 @@
+<!-- Deliberate violation fixture for M0-12 (not built): Customers must not reference Media.
+     This is not a cycle, so the compiler alone would accept it. -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Modules\Store\Platform.Modules.Store.csproj" />
+    <ProjectReference Include="..\..\..\..\src\Modules\Media\Platform.Modules.Media.csproj" />
+  </ItemGroup>
+
+</Project>

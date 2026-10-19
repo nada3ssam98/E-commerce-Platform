@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Catalog\Platform.Modules.Catalog.csproj" />
+    <ProjectReference Include="..\Inventory\Platform.Modules.Inventory.csproj" />
+    <ProjectReference Include="..\Customers\Platform.Modules.Customers.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Store\Platform.Modules.Store.csproj" />
+    <ProjectReference Include="..\Media\Platform.Modules.Media.csproj" />
+  </ItemGroup>
+
+</Project>
