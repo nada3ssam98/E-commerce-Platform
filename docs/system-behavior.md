@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **Phase 3 approved (2026-10-18).** RA-1–RA-8 approved after the second review of 2026-10-18 (RA-5 and RA-6 as revised; the four second-review clarifications included) — §7.2. R1–R4, U-1–U-4, U-6 approved; ADR-04 revision 4 approved 2026-10-18. **Still open:** U-5 (production edge capability) and the implementation items deferred to the architecture phase (§7.4: P4-2–P4-7 open; P4-1 decided 2026-10-18; P4-4 decided by M1-D3, scope to confirm). |
+| **Status** | **Phase 3 approved (2026-10-18).** RA-1–RA-8 approved after the second review of 2026-10-18 (RA-5 and RA-6 as revised; the four second-review clarifications included) — §7.2. R1–R4, U-1–U-4, U-6 approved; ADR-04 revision 4 approved 2026-10-18. **Still open:** U-5 (production edge capability) and the implementation items deferred to the architecture phase (§7.4: P4-1 decided 2026-10-18; P4-2, P4-3, P4-4, P4-6, P4-7 (b) and (c) decided 2026-10-19; **open:** P4-5, and P4-7 (d), which is completed per workflow). |
 | **Last updated** | 2026-10-18 |
 | **Phase** | 3 — Cross-domain relationships and end-to-end workflows |
 | **Based on** | [requirements.md](requirements.md) v1.9 (approved 2026-10-18), [domain-model.md](domain-model.md) (approved) |
@@ -168,7 +168,7 @@ Reconciliation **never replaces** transactional guards: every workflow enforces 
 - **Canonical URL:** each page's canonical is its own locale URL on the store's **primary host**.
 - **`hreflang`:** each page lists its alternates for every supported locale, plus `x-default` pointing to the default locale. Single-locale stores emit no alternates.
 - The language switcher links to the **same page** in the other locale.
-- **Deterministic behavior** [RA-3, clarified 2026-10-18]: the redirect target depends **only** on the resolved store's default locale and the requested path — never on `Accept-Language`, cookies, or any other per-visitor input. Two requests for the same store and URL always receive the same redirect or page. Because a store's default locale can change, a locale redirect must **not** be cacheable as permanent by browsers; its exact status code and cache headers are fixed in the architecture phase (§7.4, P4-4).
+- **Deterministic behavior** [RA-3, clarified 2026-10-18]: the redirect target depends **only** on the resolved store's default locale and the requested path — never on `Accept-Language`, cookies, or any other per-visitor input. Two requests for the same store and URL always receive the same redirect or page. Because a store's default locale can change, a locale redirect must **not** be cacheable as permanent by browsers. **Status and headers** *(P4-4, approved 2026-10-19)*: `302` with `Cache-Control: public, max-age=0, s-maxage=60` for `/` and for unsupported or missing locale prefixes alike; `Location` is a relative path in the default locale; M1 drops the query string, and from M4 the RA-7 allow-listed query parameters are kept; no `Set-Cookie` (test LR-1).
 
 ### 4.4 Safety rules
 
@@ -323,7 +323,7 @@ Every operation acquires locks in this order, which prevents deadlocks:
 | Two **different** intentional adds of the same variant | Two request ids | Both apply (quantity increases twice), within limits |
 | The original add was **rejected** (e.g., insufficient stock, store not active) | May retry with the same id | Nothing was recorded, so the retry is evaluated afresh |
 
-**Response:** the first application and a replay both return `200` with the **current** cart and quote — which may include changes made after the original add. A replay never updates `lastActivityAt`. Whether the response additionally signals that it was a replay is decided in the architecture phase (§7.4, P4-3).
+**Response:** the first application and a replay both return `200` with the **current** cart and quote — which may include changes made after the original add. A replay never updates `lastActivityAt`. A replay additionally carries the response header `Idempotent-Replayed: true` (body unchanged; clients may ignore it); the first application does not *(P4-3, approved 2026-10-19)*. The same header marks replays of order placement and inventory adjustments.
 
 **Scope of a request id.** Records live as long as their cart:
 - **Reassignment** to a customer keeps the cart (and its records).
@@ -373,7 +373,26 @@ Each workflow follows the same structure: **Trigger and preconditions → Steps 
 
 **Audit outcome** [RA-1 — clarified 2026-10-18]: every operator command records the **operation, timestamp, outcome, and declared actor**:
 - **Succeeded** — PlatformAuditEvents are written in the **same transaction** as the change (above).
-- **Refused or failed** (e.g., `Disabled` staff identity — RA-2; activation precondition missing; validation error) — the business transaction writes nothing, so the refusal is recorded **separately**, with the reason code and no sensitive data. How this record is written (e.g., a separate transaction after rollback) is decided in the architecture phase (§7.4, P4-2).
+- **Refused or failed** (e.g., `Disabled` staff identity — RA-2; activation precondition missing; validation error) — the business transaction writes nothing, so the refusal is recorded **separately**, with the reason code and no sensitive data.
+
+**How refused and failed commands are recorded** *(P4-2, approved 2026-10-19 — Option A)*
+- **Separate audit transaction:** after the business transaction has rolled back — or, for a refusal detected before it starts, instead of it — the command writes **exactly one** PlatformAuditEvent in a **new, separate transaction** with its own database context: outcome `Refused` or `Failed`, a reason code, the declared actor, and no sensitive data ([domain-model §1.14](domain-model.md#114-platformauditevent)). `Refused`: a business rule, precondition, or validation rejected the command. `Failed`: an unexpected error (database error, timeout). The audit transaction takes no organization or store lock.
+- **Target:** recorded when the attempted target is known (e.g., the existing `Disabled` StaffUser, the store being activated); `targetId` is omitted only when no valid target can be identified (e.g., a refused provisioning that created no organization or store).
+- **Unknown commit outcome** (connection lost during commit): recorded as `Failed` / `OutcomeUnknown`, and the operator is told to check the target's status. If the commit did succeed, its `Succeeded` events exist as well; nothing is corrected automatically.
+- **Missing operator identifier:** refused before any database work; **no** PlatformAuditEvent is written (`actor` is required and is never invented); a warning is logged. CLI usage errors are handled the same way.
+- **Audit-write failure:** if a required audit record cannot be persisted, the command logs the failure at error level (with the event's non-sensitive fields), prints a warning on the operator console, and exits with a **non-zero** code. It is never reported as success.
+- **Temporary limitation (M1):** there is no dedicated alerting channel for audit-write failures; alerting is added when observability is available.
+
+**Required tests** (real PostgreSQL; built with the M1 operator CLI — milestone-m0-m1 M1-13):
+
+| # | Scenario | Expected |
+|---|---|---|
+| AU-1 | Provisioning with a `Disabled` staff identity | No business rows; exactly one event `Refused` / `StaffUserDisabled` with the operator as `actor` and that StaffUser as target; no email, password, or token in the event |
+| AU-2 | Activation with a precondition missing | Store stays `Setup`; exactly one event `Refused` / `ActivationPreconditionMissing` targeting the store |
+| AU-3 | Provisioning with a validation error (e.g., invalid handle) | No business rows; exactly one event `Refused` / `ValidationFailed` without `targetId`; no submitted values in `details` |
+| AU-4 | Database failure injected inside the business transaction | Full rollback; exactly one event `Failed` / `UnexpectedError` |
+| AU-5 | The audit insert itself fails | Error log entry, console warning, non-zero exit code; no business rows; not reported as success |
+| AU-6 | Operator identifier missing | No business rows, no audit event, one warning log entry |
 
 **Steps — activation** (separate operator command)
 1. Check activation preconditions (domain-model §1.6).
@@ -763,7 +782,7 @@ A request id is therefore required for these two operations as well; it is **not
 
 **Audit behavior**
 - **Every applied adjustment** produces exactly one stock movement — the inventory audit record — written in the same transaction (INV-10).
-- **Replays and rejected attempts** (stale, shortage, validation, payload conflict) **change nothing and write no movement**; the domain audit therefore reflects only what actually changed stock. Rejected attempts appear in application logs. Whether any of them must also enter a domain-level audit record is decided in the architecture phase (§7.4, P4-6).
+- **Replays and rejected attempts** (stale, shortage, validation, payload conflict) **change nothing and write no movement**; the domain audit therefore reflects only what actually changed stock. Rejected attempts appear in application logs. They do **not** enter a domain-level audit record: each rejection writes one structured application log entry with the request id, variant, reason code, and acting staff user id, and no personal data *(P4-6, approved 2026-10-19)*.
 
 **Remaining design choices** (architecture phase, §7.4, P4-5): exact composition of the request fingerprint; whether the expected `onHand` is a sufficient concurrency token for Count/Contain or a stronger token is needed (an `onHand` that changes and returns to the same value between read and write would not be detected); the exact error codes and response bodies.
 
@@ -969,12 +988,12 @@ Phase 3 fixes **what** must hold; these items decide **how**, on PostgreSQL (ADR
 | # | Item | Requirement it must satisfy | Source | Status | Needed by |
 |---|---|---|---|---|---|
 | **P4-1** | Synchronization mechanism for prohibited writes other than placement, item-edit apply, and customer/guest cancellation | None commits after a suspension commits; non-conflicting operations are not serialized against each other; global lock order (5.1, 5.2) | RA-6 | **Decided 2026-10-18** — shared organization/store locks for every prohibited write; store/organization-row writers lock exclusively and directly (§5.1 *P4-1 decision*; ADR-02) | M1 (status-change side); M2 onward (prohibited writes) |
-| **P4-2** | How refused or failed operator commands are recorded (the business transaction rolls back) | Operation, timestamp, outcome, reason code, declared actor; no secrets | RA-1 | Open | **Before M1** (provisioning and activation refusals) |
-| **P4-3** | Whether the add-to-cart response signals that it was a replay | Idempotency guaranteed by the request record regardless (5.3.1) | RA-4 | Open | First replayable endpoint (M5) |
-| **P4-4** | Status code and cache headers of locale redirects (`/` and unsupported prefixes) | Deterministic; not cacheable as permanent by browsers (4.3) | RA-3 | **Decided by M1-D3** (302; `public, max-age=0, s-maxage=60`). To confirm: same for unsupported/missing prefixes; query handling in `Location` given M1-15 | Before M1 (confirmation) |
-| **P4-5** | Inventory: request-fingerprint composition; whether expected `onHand` is a sufficient concurrency token for Count/Contain (value changes and returns between read and write); exact error codes and bodies | W8 conflict table | RA-5 | Open | M5 |
-| **P4-6** | Whether rejected inventory adjustments need a domain-level audit record in addition to application logs | Applied adjustments: exactly one movement; replays and rejections change nothing (W8) | RA-5 | Open | M5 |
-| **P4-7** | Consolidated transaction boundaries, optimistic-concurrency tokens, and row-level locking per workflow, with the PostgreSQL integration tests that verify them | INV-2, INV-3, INV-12; 5.1–5.3 | RA-8 | Open — sub-items: **(a)** EF Core transaction rules — *documented in ADR-02 with P4-1*; **(b)** server-side retry policy for `40P01`/`40001`, including whether Npgsql's execution strategy is used; **(c)** `lock_timeout` / `statement_timeout`; **(d)** the per-workflow matrix and its tests | (a) M1; (b), (c) M2; (d) M2–M7, per workflow |
+| **P4-2** | How refused or failed operator commands are recorded (the business transaction rolls back) | Operation, timestamp, outcome, reason code, declared actor; no secrets | RA-1 | **Decided 2026-10-19** — one PlatformAuditEvent in a separate transaction after rollback; `targetId` optional when no valid target can be identified; audit-write failure → error log, console warning, non-zero exit (W1 *How refused and failed commands are recorded*; domain-model §1.14) | **Before M1** (provisioning and activation refusals) |
+| **P4-3** | Whether the add-to-cart response signals that it was a replay | Idempotency guaranteed by the request record regardless (5.3.1) | RA-4 | **Decided 2026-10-19** — replays return the normal response plus header `Idempotent-Replayed: true` (add-to-cart, order placement, inventory adjustments); body unchanged; first applications carry no such header (5.3.1) | First replayable endpoint (M5) |
+| **P4-4** | Status code and cache headers of locale redirects (`/` and unsupported prefixes) | Deterministic; not cacheable as permanent by browsers (4.3) | RA-3 | **Decided 2026-10-19** — `302`, `public, max-age=0, s-maxage=60` for `/` and unsupported or missing prefixes; relative `Location`; query dropped in M1, RA-7 allow-listed parameters kept from M4; no `Set-Cookie` (4.3; test LR-1) | Before M1 |
+| **P4-5** | Inventory: request-fingerprint composition; whether expected `onHand` is a sufficient concurrency token for Count/Contain (value changes and returns between read and write); exact error codes and bodies | W8 conflict table | RA-5 | Open — proposal under review (error codes must match W8's `422` responses) | M5 |
+| **P4-6** | Whether rejected inventory adjustments (stale, shortage) need a domain-level audit record in addition to application logs | Applied adjustments: exactly one movement; replays and rejections change nothing (W8) | RA-5 | **Decided 2026-10-19** — no domain-level audit record; one structured application log entry per rejection (request id, variant, reason code, acting staff user id; no personal data) (W8) | M5 |
+| **P4-7** | Consolidated transaction boundaries, optimistic-concurrency tokens, and row-level locking per workflow, with the PostgreSQL integration tests that verify them | INV-2, INV-3, INV-12; 5.1–5.3 | RA-8 | Partly decided — **(a)** EF Core transaction rules: decided with P4-1 (ADR-02). **(b) Decided 2026-10-19:** no global Npgsql retry-on-failure execution strategy; one transaction runner re-runs the **whole** operation (locks, status check, writes) on `40P01` and `40001` only, at most 3 attempts with jittered backoff, then `503 SERVICE_BUSY` with `Retry-After`; the client retries with the same request id or idempotency key; `55P03` (lock timeout) is not retried and maps to the same `503`. **(c) Decided 2026-10-19:** application role: `lock_timeout = 5s`, `statement_timeout = 15s`, `idle_in_transaction_session_timeout = 30s`; reconciliation runs under a separate read-only role with `statement_timeout = 120s`. **(d) Open:** the per-workflow matrix and its tests, completed with each workflow's milestone | (a) M1; (b), (c) M2; (d) M2–M7, per workflow |
 
 ---
 

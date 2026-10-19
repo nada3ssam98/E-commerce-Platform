@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Status** | **Updated after the review decisions of 2026-10-18.** Agreed so far: M0 + M1 first (no concurrency spike); order admin (M8) before customer accounts (M9). The roadmap as a whole is **pending your review**. |
-| **Last updated** | 2026-10-18 |
+| **Status** | **Approved 2026-10-19 as the plan of record.** Change-controlled: any change to milestone order, scope, or dependencies requires an explicit rationale and a documented review (decision log entry in requirements). Approval does not authorize skipping acceptance criteria or gates, or starting a milestone before its dependencies and gates are met. Agreed earlier: M0 + M1 first (no concurrency spike); order admin (M8) before customer accounts (M9). |
+| **Last updated** | 2026-10-19 (roadmap approved) |
 | **Based on** | [requirements.md](requirements.md) v1.9 (approved), [domain-model.md](domain-model.md) (approved), [system-behavior.md](system-behavior.md), [architecture-decisions.md](architecture-decisions.md) (all approved; ADR-12 deferred), [milestone-m0-m1.md](milestone-m0-m1.md) |
 
 > **Principles.** Dependency-driven order; small end-to-end vertical slices (migration → backend operation with tests → OpenAPI contract → generated types → UI → E2E); tenant isolation, host spoofing, and domain invariants are **gates from the milestone that introduces them**, not final testing tasks. Deferred features (requirements §27) stay out.
@@ -18,7 +18,7 @@
 |---|---|---|
 | G1 | **ADR-04 revision 4 reviewed and approved** (separate edge-to-SSR, edge-to-API, and SSR-to-API credentials; network binding; tests TH-1–TH-14) | ✅ Approved 2026-10-18 (commit `849fe35`, merge `c9edca5`) |
 | G2 | Planning documents consistent | ✅ Complete — merged to `main` via PR #3 (`c9edca5`) |
-| G3 | Branch protection on `main` (PR required with 0 required approvals — solo developer; no direct/force pushes, no deletion; CI checks required once stable — M0-17) | ❌ Not configured (verified 2026-10-18 via GitHub API) — owner action |
+| G3 | Branch protection on `main` (PR required with 0 required approvals — solo developer; no direct/force pushes, no deletion; CI checks required once stable — M0-17) | ✅ Configured and verified 2026-10-19 via GitHub API (PR required, 0 approvals, no bypass, no force pushes or deletion; status checks added at M0-17) |
 
 Details: [milestone-m0-m1.md §1](milestone-m0-m1.md#1-gates-and-prerequisites-before-m0-starts). Once G3 is verified, M0 follows the step order in the [M0 start checklist](milestone-m0-m1.md#1a-m0-start-checklist-execution-order--begins-only-after-g3-is-verified). Architecture approval (G1) is not implementation: no application code exists yet.
 
@@ -83,8 +83,9 @@ Details: [milestone-m0-m1.md §1](milestone-m0-m1.md#1-gates-and-prerequisites-b
 
 | Item | Affects | Status |
 |---|---|---|
-| Branch protection | M0 start (G3) | Not configured — owner action |
+| Branch protection | M0 start (G3) | ✅ Configured and verified 2026-10-19; required CI checks follow at M0-17 |
 | U-5 production edge capability | First shared environment | Open |
 | ADR-12 hosting, production email provider | First shared environment | Deferred |
 | OQ3 / U-6 tax and invoicing; OQ2 data protection | Commercial launch | Launch gates |
 | OQ1 theme customization | Branding milestone | Phase 5 |
+| P4-5 inventory fingerprint, concurrency token, error codes (system-behavior §7.4) | M5 | Open — conflict with W8's 422 responses to resolve |
