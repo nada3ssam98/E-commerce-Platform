@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | **Phase 3 approved (2026-10-18).** RA-1–RA-8 approved after the second review of 2026-10-18 (RA-5 and RA-6 as revised; the four second-review clarifications included) — §7.2. R1–R4, U-1–U-4, U-6 approved; ADR-04 revision 4 approved 2026-10-18. **Still open:** U-5 (production edge capability) and the implementation items deferred to the architecture phase (§7.4, P4-1–P4-7). |
+| **Status** | **Phase 3 approved (2026-10-18).** RA-1–RA-8 approved after the second review of 2026-10-18 (RA-5 and RA-6 as revised; the four second-review clarifications included) — §7.2. R1–R4, U-1–U-4, U-6 approved; ADR-04 revision 4 approved 2026-10-18. **Still open:** U-5 (production edge capability) and the implementation items deferred to the architecture phase (§7.4: P4-1 and P4-3–P4-7; P4-2 decided 2026-10-19). |
 | **Last updated** | 2026-10-18 |
 | **Phase** | 3 — Cross-domain relationships and end-to-end workflows |
 | **Based on** | [requirements.md](requirements.md) v1.9 (approved 2026-10-18), [domain-model.md](domain-model.md) (approved) |
@@ -344,7 +344,26 @@ Each workflow follows the same structure: **Trigger and preconditions → Steps 
 
 **Audit outcome** [RA-1 — clarified 2026-10-18]: every operator command records the **operation, timestamp, outcome, and declared actor**:
 - **Succeeded** — PlatformAuditEvents are written in the **same transaction** as the change (above).
-- **Refused or failed** (e.g., `Disabled` staff identity — RA-2; activation precondition missing; validation error) — the business transaction writes nothing, so the refusal is recorded **separately**, with the reason code and no sensitive data. How this record is written (e.g., a separate transaction after rollback) is decided in the architecture phase (§7.4, P4-2).
+- **Refused or failed** (e.g., `Disabled` staff identity — RA-2; activation precondition missing; validation error) — the business transaction writes nothing, so the refusal is recorded **separately**, with the reason code and no sensitive data.
+
+**How refused and failed commands are recorded** *(P4-2, approved 2026-10-19 — Option A)*
+- **Separate audit transaction:** after the business transaction has rolled back — or, for a refusal detected before it starts, instead of it — the command writes **exactly one** PlatformAuditEvent in a **new, separate transaction** with its own database context: outcome `Refused` or `Failed`, a reason code, the declared actor, and no sensitive data ([domain-model §1.14](domain-model.md#114-platformauditevent)). `Refused`: a business rule, precondition, or validation rejected the command. `Failed`: an unexpected error (database error, timeout). The audit transaction takes no organization or store lock.
+- **Target:** recorded when the attempted target is known (e.g., the existing `Disabled` StaffUser, the store being activated); `targetId` is omitted only when no valid target can be identified (e.g., a refused provisioning that created no organization or store).
+- **Unknown commit outcome** (connection lost during commit): recorded as `Failed` / `OutcomeUnknown`, and the operator is told to check the target's status. If the commit did succeed, its `Succeeded` events exist as well; nothing is corrected automatically.
+- **Missing operator identifier:** refused before any database work; **no** PlatformAuditEvent is written (`actor` is required and is never invented); a warning is logged. CLI usage errors are handled the same way.
+- **Audit-write failure:** if a required audit record cannot be persisted, the command logs the failure at error level (with the event's non-sensitive fields), prints a warning on the operator console, and exits with a **non-zero** code. It is never reported as success.
+- **Temporary limitation (M1):** there is no dedicated alerting channel for audit-write failures; alerting is added when observability is available.
+
+**Required tests** (real PostgreSQL; built with the M1 operator CLI — milestone-m0-m1 M1-13):
+
+| # | Scenario | Expected |
+|---|---|---|
+| AU-1 | Provisioning with a `Disabled` staff identity | No business rows; exactly one event `Refused` / `StaffUserDisabled` with the operator as `actor` and that StaffUser as target; no email, password, or token in the event |
+| AU-2 | Activation with a precondition missing | Store stays `Setup`; exactly one event `Refused` / `ActivationPreconditionMissing` targeting the store |
+| AU-3 | Provisioning with a validation error (e.g., invalid handle) | No business rows; exactly one event `Refused` / `ValidationFailed` without `targetId`; no submitted values in `details` |
+| AU-4 | Database failure injected inside the business transaction | Full rollback; exactly one event `Failed` / `UnexpectedError` |
+| AU-5 | The audit insert itself fails | Error log entry, console warning, non-zero exit code; no business rows; not reported as success |
+| AU-6 | Operator identifier missing | No business rows, no audit event, one warning log entry |
 
 **Steps — activation** (separate operator command)
 1. Check activation preconditions (domain-model §1.6).
@@ -935,12 +954,12 @@ All eight were first approved on 2026-10-18 (previous wording: [change record §
 
 ### 7.4 Items deferred to the architecture phase
 
-Phase 3 fixes **what** must hold; these items decide **how**, on PostgreSQL (ADR-02). None is decided here.
+Phase 3 fixes **what** must hold; these items decide **how**, on PostgreSQL (ADR-02). Each item is decided only by explicit approval.
 
 | # | Item | Requirement it must satisfy | Source |
 |---|---|---|---|
 | **P4-1** | Synchronization mechanism for prohibited writes other than placement, item-edit apply, and customer/guest cancellation (cart writes incl. merge, registrations, staff catalog/media/settings/branding writes) | None commits after a suspension commits; non-conflicting operations are not serialized against each other; global lock order (5.1, 5.2) | RA-6 |
-| **P4-2** | How refused or failed operator commands are recorded (the business transaction rolls back) | Operation, timestamp, outcome, reason code, declared actor; no secrets | RA-1 |
+| **P4-2** | How refused or failed operator commands are recorded (the business transaction rolls back) — **Decided 2026-10-19:** one PlatformAuditEvent in a separate transaction after rollback; `targetId` optional when no valid target can be identified; audit-write failure → error log, console warning, non-zero exit (W1 *How refused and failed commands are recorded*; domain-model §1.14) | Operation, timestamp, outcome, reason code, declared actor; no secrets | RA-1 |
 | **P4-3** | Whether the add-to-cart response signals that it was a replay | Idempotency guaranteed by the request record regardless (5.3.1) | RA-4 |
 | **P4-4** | Status code and cache headers of locale redirects (`/` and unsupported prefixes) | Deterministic; not cacheable as permanent by browsers (4.3) | RA-3 |
 | **P4-5** | Inventory: request-fingerprint composition; whether expected `onHand` is a sufficient concurrency token for Count/Contain (value changes and returns between read and write); exact error codes and bodies | W8 conflict table | RA-5 |
