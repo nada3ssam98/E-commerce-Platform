@@ -22,6 +22,9 @@ npx ng serve storefront   # dev server, English; Arabic: npx ng serve storefront
 npx ng extract-i18n storefront # refresh projects/storefront/src/locale/messages.xlf, then update messages.ar.xlf
 npm run contracts:generate   # regenerate @platform/api-contracts types from ../contracts/openapi.json
 npm run contracts:check      # fails when the committed types do not match the contract
+npm run lint                 # angular-eslint (TypeScript and templates, incl. accessibility rules)
+npm run scan:bundles         # after build: browser bundles contain no trusted-path names or values (TH-8)
+npm run test:ssr             # after build: integration tests of the built SSR server (fake API fixture)
 ```
 
 ## API contracts
@@ -30,4 +33,13 @@ npm run contracts:check      # fails when the committed types do not match the c
 
 > **Temporary:** until the backend generates `contracts/openapi.json`, the file is a hand-written stand-in covering only the health endpoints that exist on `main` (see `contracts/README.md`).
 
-The SSR server accepts only allow-listed hosts (`localhost`, `*.localhost` for local development — ADR-04 rule 6).
+## SSR server and the trusted path (ADR-04)
+
+`node dist/storefront/server/server.mjs` refuses to start unless its settings are valid (see `projects/storefront/.env.example`); errors name settings, never values. Then:
+
+- every request needs the **SSR ingress key** (constant-time check; current and previous key during rotation) and a valid `X-Platform-Host`, otherwise `403` with nothing rendered and a security log entry without values;
+- the public host comes **only** from the verified `X-Platform-Host`; client `X-Forwarded-Host` / `Forwarded` headers are dropped;
+- API calls made while rendering go to `INTERNAL_API_BASE_URL` with the verified host and the **SSR-to-API key**, `GET` only, with no browser cookies or credentials (server-only interceptor, never in the browser bundle);
+- the test-only diagnostic `/_test/ssr-request-context` exists only with `PLATFORM_ENVIRONMENT=Testing` and `PLATFORM_ENABLE_TEST_DIAGNOSTICS=true`; otherwise `404`.
+
+Angular's host validation additionally allows only `localhost` and `*.localhost` (local development); production hosts come with hosting (ADR-12). `npx ng serve` runs without the trusted path (it logs a warning).

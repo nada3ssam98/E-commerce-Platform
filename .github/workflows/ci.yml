@@ -1,6 +1,9 @@
-# Minimal backend CI, brought forward from M0 step 6 (owner-approved 2026-10-19) so that the
-# real-PostgreSQL tests of M0 step 2 (M0-11) run where a container runtime exists.
-# Step 6 extends this workflow (frontend, drift check, scans, E2E) and adds required status checks (M0-17).
+# CI for both stacks (M0 step 6, ADR-11).
+# - backend: brought forward from step 6 (owner-approved 2026-10-19) so the real-PostgreSQL tests run (M0-11).
+# - frontend: npm ci, contract check, lint, unit tests, builds, browser bundle scan (TH-8), SSR server
+#   integration tests, dependency audit.
+# Still to add with shared/backend work: full contract drift check with the generated openapi.json (M0-13),
+# secret scan (M0-16), E2E through the local edge (step 7); then required status checks (M0-17).
 name: CI
 
 on:
@@ -38,3 +41,45 @@ jobs:
 
       - name: Test
         run: dotnet test --solution backend/Platform.slnx --configuration Release --no-build
+
+  frontend:
+    name: Frontend lint, tests, and builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NG_CLI_ANALYTICS: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install (npm ci, lock file and engines enforced)
+        run: npm ci
+
+      - name: Contract types match contracts/openapi.json
+        run: npm run contracts:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test:all
+
+      - name: Production builds
+        run: npm run build:all
+
+      - name: Browser bundle scan (TH-8)
+        run: npm run scan:bundles
+
+      - name: SSR server integration tests
+        run: npm run test:ssr
+
+      - name: Dependency audit
+        run: npm audit
