@@ -2,8 +2,9 @@
 # - backend: brought forward from step 6 (owner-approved 2026-10-19) so the real-PostgreSQL tests run (M0-11).
 # - frontend: npm ci, contract check, lint, unit tests, builds, browser bundle scan (TH-8), SSR server
 #   integration tests, dependency audit.
-# Still to add with shared/backend work: full contract drift check with the generated openapi.json (M0-13),
-# secret scan (M0-16), E2E through the local edge (step 7); then required status checks (M0-17).
+# - contracts: full drift check (M0-13): the API build regenerates contracts/openapi.json, the frontend regenerates
+#   its types from it, and any difference from the committed files fails the job.
+# Still to add with shared/backend work: secret scan (M0-16), E2E through the local edge (step 7); then required status checks (M0-17).
 name: CI
 
 on:
@@ -83,3 +84,42 @@ jobs:
 
       - name: Dependency audit
         run: npm audit
+
+  contracts:
+    name: Contract drift check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      DOTNET_NOLOGO: "1"
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+      NG_CLI_ANALYTICS: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: Build the API (regenerates contracts/openapi.json)
+        run: |
+          dotnet restore backend/src/Api/Platform.Api.csproj --locked-mode
+          dotnet build backend/src/Api/Platform.Api.csproj --configuration Release --no-restore
+
+      - name: Regenerate the TypeScript contract types
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run contracts:generate
+
+      - name: Committed contract and types are up to date
+        run: |
+          if ! git diff --exit-code -- contracts/ frontend/projects/api-contracts/; then
+            echo "::error::The API contract changed. Build the API and run 'npm run contracts:generate' in frontend/, then commit contracts/openapi.json and the generated types."
+            exit 1
+          fi

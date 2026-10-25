@@ -2,6 +2,13 @@
 
   <!-- Storefront and admin HTTP API host (ADR-01). Business endpoints arrive with their milestones. -->
 
+  <PropertyGroup Label="API contract (ADR-03)">
+    <!-- Every build writes the OpenAPI document to contracts/openapi.json; CI fails when the committed file differs (M0-13). -->
+    <OpenApiGenerateDocuments>true</OpenApiGenerateDocuments>
+    <OpenApiDocumentsDirectory>$(MSBuildThisFileDirectory)..\..\..\contracts</OpenApiDocumentsDirectory>
+    <OpenApiGenerateDocumentsOptions>--file-name openapi</OpenApiGenerateDocumentsOptions>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\ServiceDefaults\Platform.ServiceDefaults.csproj" />
     <ProjectReference Include="..\ReadModels\Platform.ReadModels.csproj" />
@@ -9,6 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
   </ItemGroup>
 

@@ -1,5 +1,4 @@
-using System.Text.Json;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Platform.Infrastructure.Persistence;
 
@@ -17,26 +16,32 @@ public static class HealthEndpoints
     {
         ArgumentNullException.ThrowIfNull(app);
 
+        var health = app.MapGroup("/api/health").WithTags("Health");
+
         // Liveness: the process answers; no dependency is checked.
-        app.MapHealthChecks("/api/health", Options(_ => false));
+        health.MapGet("", () => TypedResults.Ok(new HealthResponse(HealthStatus.Healthy)))
+            .WithName("getHealth")
+            .WithSummary("Liveness: the API process answers. No dependency is checked.");
 
         // Readiness: the database is reachable with the application's credentials.
-        app.MapHealthChecks("/api/health/ready", Options(check => check.Tags.Contains(ReadyTag)));
+        health.MapGet("/ready", ReadyAsync)
+            .WithName("getReadiness")
+            .WithSummary("Readiness: the database is reachable with the application's credentials.")
+            .Produces<HealthResponse>(StatusCodes.Status503ServiceUnavailable);
         return app;
     }
 
-    private static HealthCheckOptions Options(Func<HealthCheckRegistration, bool> predicate) => new()
+    // Status only: no check names, descriptions, or exception text leave the process.
+    private static async Task<Results<Ok<HealthResponse>, JsonHttpResult<HealthResponse>>> ReadyAsync(
+        HealthCheckService health, CancellationToken cancellationToken)
     {
-        Predicate = predicate,
-
-        // Leave Cache-Control to the API default (private, no-store) instead of the middleware's own headers.
-        AllowCachingResponses = true,
-
-        // Status only: no check names, descriptions, or exception text leave the process.
-        ResponseWriter = (context, report) =>
-        {
-            context.Response.ContentType = "application/json";
-            return context.Response.WriteAsync(JsonSerializer.Serialize(new { status = report.Status.ToString() }));
-        },
-    };
+        var report = await health.CheckHealthAsync(check => check.Tags.Contains(ReadyTag), cancellationToken);
+        var response = new HealthResponse(report.Status);
+        return report.Status == HealthStatus.Unhealthy
+            ? TypedResults.Json(response, statusCode: StatusCodes.Status503ServiceUnavailable)
+            : TypedResults.Ok(response);
+    }
 }
+
+/// <summary>Body of both health endpoints.</summary>
+public sealed record HealthResponse(HealthStatus Status);

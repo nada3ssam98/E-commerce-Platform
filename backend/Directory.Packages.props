@@ -10,6 +10,10 @@
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
   </ItemGroup>
+  <ItemGroup Label="API contract (ADR-03; contracts/openapi.json generated at build, M0 step 5)">
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
+    <PackageVersion Include="Microsoft.Extensions.ApiDescription.Server" Version="10.0.13" />
+  </ItemGroup>
   <ItemGroup Label="Health, logging, redaction, telemetry (cross-cutting conventions)">
     <PackageVersion Include="Microsoft.Extensions.Compliance.Abstractions" Version="10.11.0" />
     <PackageVersion Include="Microsoft.Extensions.Compliance.Redaction" Version="10.11.0" />

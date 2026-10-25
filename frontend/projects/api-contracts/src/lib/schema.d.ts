@@ -42,11 +42,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @enum {string} */
-        HealthStatus: "Healthy" | "Degraded" | "Unhealthy";
         HealthResponse: {
             status: components["schemas"]["HealthStatus"];
         };
+        /** @enum {string} */
+        HealthStatus: "Unhealthy" | "Degraded" | "Healthy";
     };
     responses: never;
     parameters: never;
@@ -68,7 +68,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The process is running. */
+            /** @description OK */
             200: {
                 headers: {
                     "X-Request-Id": components["headers"]["X-Request-Id"];
@@ -89,7 +89,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Ready (Healthy or Degraded). */
+            /** @description OK */
             200: {
                 headers: {
                     "X-Request-Id": components["headers"]["X-Request-Id"];
@@ -99,7 +99,7 @@ export interface operations {
                     "application/json": components["schemas"]["HealthResponse"];
                 };
             };
-            /** @description Not ready (Unhealthy). */
+            /** @description Service Unavailable */
             503: {
                 headers: {
                     "X-Request-Id": components["headers"]["X-Request-Id"];
