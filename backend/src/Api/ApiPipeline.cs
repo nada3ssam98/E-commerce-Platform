@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.Net.Http.Headers;
+using Platform.Api.TrustedPath;
 using Platform.SharedKernel;
 
 namespace Platform.Api;
@@ -19,9 +20,9 @@ public static class ApiPipeline
         HeaderNames.Cookie,
         HeaderNames.SetCookie,
         HeaderNames.Authorization,
-        "X-Platform-Api-Edge-Key",
-        "X-Platform-Ssr-Ingress-Key",
-        "X-Platform-Ssr-Api-Key",
+        TrustedPathHeaders.ApiEdgeKey,
+        TrustedPathHeaders.SsrIngressKey,
+        TrustedPathHeaders.SsrApiKey,
     ];
 
     public static IServiceCollection AddPlatformApi(this IServiceCollection services)
@@ -91,6 +92,9 @@ public static class ApiPipeline
         app.UseHttpLogging();
         app.UseExceptionHandler();
         app.UseStatusCodePages();
+
+        // Nothing below runs for a request that did not arrive over the trusted path (ADR-04 rules 9–12).
+        app.UsePlatformTrustedPath();
         return app;
     }
 }

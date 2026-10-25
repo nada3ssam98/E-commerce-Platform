@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.OpenApi;
+using Platform.Api.TrustedPath;
 using Platform.Persistence;
 
 namespace Platform.Api;
@@ -28,6 +29,10 @@ public static class OpenApiContract
         configuration.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [PlatformDatabaseOptions.SettingName] = "Host=localhost;Database=platform;Username=platform_app",
+            [$"{TrustedPathOptions.SectionName}:{nameof(TrustedPathOptions.ApiEdgeKey)}"] = new string('e', TrustedPathOptions.MinimumKeyLength),
+            [$"{TrustedPathOptions.SectionName}:{nameof(TrustedPathOptions.SsrApiKey)}"] = new string('s', TrustedPathOptions.MinimumKeyLength),
+            [$"{TrustedPathOptions.SectionName}:{nameof(TrustedPathOptions.EdgeNetworks)}:0"] = "127.0.0.1/32",
+            [$"{TrustedPathOptions.SectionName}:{nameof(TrustedPathOptions.SsrNetworks)}:0"] = "127.0.0.1/32",
         });
     }
 

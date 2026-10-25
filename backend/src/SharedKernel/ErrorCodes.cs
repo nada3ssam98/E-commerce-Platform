@@ -6,6 +6,9 @@ namespace Platform.SharedKernel;
 /// </summary>
 public static class ErrorCodes
 {
+    /// <summary>The request did not arrive over the trusted path, or its caller may not use the route (ADR-04).</summary>
+    public const string Forbidden = "FORBIDDEN";
+
     public const string NotFound = "NOT_FOUND";
     public const string MethodNotAllowed = "METHOD_NOT_ALLOWED";
     public const string InternalError = "INTERNAL_ERROR";
@@ -17,6 +20,7 @@ public static class ErrorCodes
     /// <summary>The code for an error response that no feature assigned a code to.</summary>
     public static string ForStatus(int statusCode) => statusCode switch
     {
+        403 => Forbidden,
         404 => NotFound,
         405 => MethodNotAllowed,
         500 => InternalError,

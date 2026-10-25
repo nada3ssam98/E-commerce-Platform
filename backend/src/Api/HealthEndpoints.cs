@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Platform.Api.TrustedPath;
 using Platform.Infrastructure.Persistence;
 
 namespace Platform.Api;
@@ -16,7 +17,8 @@ public static class HealthEndpoints
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        var health = app.MapGroup("/api/health").WithTags("Health");
+        // Public storefront GETs: the SSR server may call them (M0 SSR allow-list, ADR-04 rule 11).
+        var health = app.MapGroup("/api/health").WithTags("Health").AllowSsrCaller();
 
         // Liveness: the process answers; no dependency is checked.
         health.MapGet("", () => TypedResults.Ok(new HealthResponse(HealthStatus.Healthy)))
