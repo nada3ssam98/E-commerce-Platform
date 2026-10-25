@@ -1,0 +1,80 @@
+# Local development edge (ADR-04 §4c rules 1-4, §4g). Not a production configuration (ADR-12, U-5).
+#
+# Settings come from the environment of the Caddy process (never committed):
+#   PLATFORM_API_EDGE_KEY       edge -> API credential (added on /api/* only)
+#   PLATFORM_SSR_INGRESS_KEY    edge -> SSR credential (added on store pages only)
+#   API_UPSTREAM, SSR_UPSTREAM, ADMIN_UPSTREAM   e.g. http://127.0.0.1:5080
+#   EDGE_HTTPS_PORT             default 443
+# The edge never holds the SSR-to-API key. Key values are read per request ({env.*}), so they never appear in the
+# adapted configuration.
+
+{
+	admin off
+	local_certs
+	# Trusting the local CA is a separate, documented step (README); Caddy does not touch the system trust store.
+	skip_install_trust
+	auto_https disable_redirects
+}
+
+# Rule 1: delete every client-supplied host-override and credential header, including any client copy of the keys.
+# Caddy never trusts incoming X-Forwarded-* (no trusted_proxies) and sets its own X-Forwarded-For/-Proto (rule 3).
+(strip_client_headers) {
+	request_header -X-Forwarded-Host
+	request_header -X-Forwarded-For
+	request_header -X-Forwarded-Proto
+	request_header -Forwarded
+	request_header -X-Original-Host
+	request_header -X-Host
+	request_header -X-Platform-*
+}
+
+# Rule 4, /api/*: the API edge key only. Rule 3: X-Platform-Host is the platform host this site was configured for
+# (lowercase, no port, no trailing dot) - set, never taken from the request.
+(api) {
+	reverse_proxy {$API_UPSTREAM} {
+		header_up X-Platform-Host {args[0]}
+		header_up X-Platform-Api-Edge-Key {env.PLATFORM_API_EDGE_KEY}
+		header_up -X-Forwarded-Host
+	}
+}
+
+# A store host: /api/* to the API, everything else to the SSR server with the SSR ingress key only.
+# The API edge key is never sent to the SSR server.
+(store) {
+	{args[0]}:{$EDGE_HTTPS_PORT:443} {
+		tls internal
+		import strip_client_headers
+
+		handle /api/* {
+			import api {args[0]}
+		}
+
+		handle {
+			reverse_proxy {$SSR_UPSTREAM} {
+				header_up X-Platform-Host {args[0]}
+				header_up X-Platform-Ssr-Ingress-Key {env.PLATFORM_SSR_INGRESS_KEY}
+				header_up -X-Forwarded-Host
+			}
+		}
+	}
+}
+
+# Rule 2: only platform hosts are served. Development stores; store provisioning arrives in M1.
+import store brand-a.localhost
+import store brand-b.localhost
+
+# Admin host: /api/* to the API (same origin); the static admin bundle with no credential.
+admin.localhost:{$EDGE_HTTPS_PORT:443} {
+	tls internal
+	import strip_client_headers
+
+	handle /api/* {
+		import api admin.localhost
+	}
+
+	handle {
+		reverse_proxy {$ADMIN_UPSTREAM} {
+			header_up -X-Forwarded-Host
+		}
+	}
+}

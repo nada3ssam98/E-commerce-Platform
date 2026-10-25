@@ -1,0 +1,18 @@
+# Secret scan configuration (M0-16; implementation-plan D-7). gitleaks' default rules apply everywhere.
+title = "platform"
+
+[extend]
+useDefault = true
+
+# Test fixtures deliberately use fake credential-shaped values (random-looking keys for the trusted-path tests).
+# Only the heuristic generic-api-key rule is relaxed, and only in test files; every specific detector
+# (cloud keys, tokens, private keys, ...) still applies to them.
+[[allowlists]]
+description = "Fake credentials in test fixtures"
+targetRules = ["generic-api-key"]
+paths = [
+  '''^backend/tests/''',
+  '''\.spec\.ts$''',
+  '''^frontend/projects/[^/]+/server-tests/''',
+  '''^frontend/e2e/''',
+]

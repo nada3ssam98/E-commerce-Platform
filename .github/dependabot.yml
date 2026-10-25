@@ -1,0 +1,30 @@
+# Dependency update pull requests (implementation-plan D-7). Upgrades stay deliberate: each one is a reviewed PR
+# that must pass CI (locked restores, drift check, audits, E2E).
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      aspire:
+        patterns: ["Aspire.*"]
+      aspnetcore-efcore:
+        patterns: ["Microsoft.AspNetCore.*", "Microsoft.EntityFrameworkCore*", "Microsoft.Extensions.*", "Npgsql*"]
+      opentelemetry:
+        patterns: ["OpenTelemetry*"]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      angular:
+        patterns: ["@angular/*", "@angular-devkit/*", "@schematics/angular", "ng-packagr", "angular-eslint", "typescript"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

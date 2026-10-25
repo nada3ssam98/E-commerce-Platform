@@ -27,6 +27,7 @@
   </ItemGroup>
   <ItemGroup Label="Local orchestration (ADR-11)">
     <!-- Aspire.Hosting.AppHost is referenced implicitly by Aspire.AppHost.Sdk (version pinned in Platform.AppHost.csproj). -->
+    <PackageVersion Include="Aspire.Hosting.JavaScript" Version="13.6.1" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.6.1" />
     <!-- Security pin: Aspire.Hosting 13.6.1 brings MessagePack 2.5.302 (GHSA-qhrr-8q5h-9q3h, fixed in 2.5.303).
          Remove when an Aspire release depends on a patched version. -->
