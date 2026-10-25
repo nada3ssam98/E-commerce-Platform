@@ -40,7 +40,7 @@
     "@angular/compiler-cli": "22.2.3",
     "@angular/localize": "22.2.3",
     "@eslint/js": "10.0.1",
-    "@playwright/test": "1.62.1",
+    "@playwright/test": "1.64.1",
     "@types/express": "5.0.6",
     "@types/node": "24.19.2",
     "angular-eslint": "22.6.0",
