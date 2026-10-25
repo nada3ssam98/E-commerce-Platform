@@ -42,10 +42,21 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @enum {string} */
-        HealthStatus: "Healthy" | "Degraded" | "Unhealthy";
         HealthResponse: {
             status: components["schemas"]["HealthStatus"];
+        };
+        /** @enum {string} */
+        HealthStatus: "Unhealthy" | "Degraded" | "Healthy";
+        ProblemDetails: {
+            type?: string;
+            title?: string;
+            /** Format: int32 */
+            status: number;
+            detail?: string;
+            instance?: string;
+            /** @enum {string} */
+            code: "FORBIDDEN" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "INTERNAL_ERROR" | "SERVICE_UNAVAILABLE" | "HTTP_ERROR";
+            requestId: string;
         };
     };
     responses: never;
@@ -68,7 +79,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description The process is running. */
+            /** @description OK */
             200: {
                 headers: {
                     "X-Request-Id": components["headers"]["X-Request-Id"];
@@ -76,6 +87,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+            /** @description Forbidden: not received over the trusted path, or not allowed for this caller. */
+            403: {
+                headers: {
+                    "X-Request-Id": components["headers"]["X-Request-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error. */
+            500: {
+                headers: {
+                    "X-Request-Id": components["headers"]["X-Request-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
         };
@@ -89,7 +120,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Ready (Healthy or Degraded). */
+            /** @description OK */
             200: {
                 headers: {
                     "X-Request-Id": components["headers"]["X-Request-Id"];
@@ -99,7 +130,27 @@ export interface operations {
                     "application/json": components["schemas"]["HealthResponse"];
                 };
             };
-            /** @description Not ready (Unhealthy). */
+            /** @description Forbidden: not received over the trusted path, or not allowed for this caller. */
+            403: {
+                headers: {
+                    "X-Request-Id": components["headers"]["X-Request-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unexpected error. */
+            500: {
+                headers: {
+                    "X-Request-Id": components["headers"]["X-Request-Id"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Service Unavailable */
             503: {
                 headers: {
                     "X-Request-Id": components["headers"]["X-Request-Id"];

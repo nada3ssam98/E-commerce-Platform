@@ -1,19 +1,28 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { normalizeHost } from './host';
 
+interface HostVector {
+  input: string;
+  expected: string | null;
+}
+
+// Shared with the API (PlatformHost.Normalize): both implementations must agree (ADR-03 test vectors; TH-10).
+// Unit tests run from the workspace root (frontend/).
+const { vectors } = JSON.parse(
+  readFileSync(join(process.cwd(), '..', 'contracts', 'test-vectors', 'host-normalization.json'), 'utf8'),
+) as { vectors: HostVector[] };
+
 describe('normalizeHost', () => {
-  it.each([
-    ['brand-a.localhost', 'brand-a.localhost'],
-    ['Brand-A.localhost:443', 'brand-a.localhost'],
-    ['brand-a.localhost.', 'brand-a.localhost'],
-    [' brand-a.example.com ', 'brand-a.example.com'],
-  ])('%s → %s', (raw, expected) => {
-    expect(normalizeHost(raw)).toBe(expected);
+  it('has shared vectors to run', () => {
+    expect(vectors.length).toBeGreaterThan(0);
   });
 
-  it.each([undefined, '', 'brand a.localhost', 'brand-a.localhost:http', '-brand.localhost', 'brand_a.localhost', 'a..b', `${'a'.repeat(64)}.localhost`])(
-    'rejects %s',
-    (raw) => {
-      expect(normalizeHost(raw)).toBeNull();
-    },
-  );
+  it.each(vectors.map((vector) => [vector.input, vector.expected] as const))('%j → %j (shared vector)', (input, expected) => {
+    expect(normalizeHost(input)).toBe(expected);
+  });
+
+  it('rejects a missing host', () => {
+    expect(normalizeHost(undefined)).toBeNull();
+  });
 });

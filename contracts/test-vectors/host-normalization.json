@@ -1,0 +1,25 @@
+{
+  "description": "Host normalization (domain-model §0 Hostname; ADR-04 rules 3, 6, 13; TH-10). Run by the API (PlatformHost.Normalize) and the SSR server (normalizeHost). 'expected': null means the input is rejected.",
+  "vectors": [
+    { "input": "brand-a.localhost", "expected": "brand-a.localhost" },
+    { "input": "Brand-A.localhost:443", "expected": "brand-a.localhost" },
+    { "input": "brand-a.localhost.", "expected": "brand-a.localhost" },
+    { "input": "BRAND-A.EXAMPLE.COM.:8443", "expected": "brand-a.example.com" },
+    { "input": " brand-a.example.com ", "expected": "brand-a.example.com" },
+    { "input": "admin.localhost", "expected": "admin.localhost" },
+    { "input": "localhost", "expected": "localhost" },
+    { "input": "", "expected": null },
+    { "input": "brand a.localhost", "expected": null },
+    { "input": "brand-a.localhost:http", "expected": null },
+    { "input": "brand-a.localhost:", "expected": null },
+    { "input": "-brand.localhost", "expected": null },
+    { "input": "brand-.localhost", "expected": null },
+    { "input": "brand_a.localhost", "expected": null },
+    { "input": "a..b", "expected": null },
+    { "input": ".", "expected": null },
+    { "input": "brand-a.localhost/path", "expected": null },
+    { "input": "user@brand-a.localhost", "expected": null },
+    { "input": "[::1]", "expected": null },
+    { "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.localhost", "expected": null }
+  ]
+}

@@ -2,24 +2,59 @@
   "openapi": "3.1.1",
   "info": {
     "title": "Platform API",
-    "version": "0.0.0-temporary",
-    "description": "TEMPORARY hand-written stand-in. ADR-03 requires this file to be generated from the API at build time; the backend generation (M0 step 5, backend part) replaces it. It describes only endpoints that exist on main (backend PR #15): the health endpoints."
+    "version": "v1"
   },
-  "x-platform-temporary": true,
   "paths": {
     "/api/health": {
       "get": {
-        "operationId": "getHealth",
+        "tags": [
+          "Health"
+        ],
         "summary": "Liveness: the API process answers. No dependency is checked.",
+        "operationId": "getHealth",
         "responses": {
           "200": {
-            "description": "The process is running.",
+            "description": "OK",
             "headers": {
-              "X-Request-Id": { "$ref": "#/components/headers/X-Request-Id" }
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: not received over the trusted path, or not allowed for this caller.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
               }
             }
           }
@@ -28,28 +63,69 @@
     },
     "/api/health/ready": {
       "get": {
-        "operationId": "getReadiness",
+        "tags": [
+          "Health"
+        ],
         "summary": "Readiness: the database is reachable with the application's credentials.",
+        "operationId": "getReadiness",
         "responses": {
           "200": {
-            "description": "Ready (Healthy or Degraded).",
+            "description": "OK",
             "headers": {
-              "X-Request-Id": { "$ref": "#/components/headers/X-Request-Id" }
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
               }
             }
           },
           "503": {
-            "description": "Not ready (Unhealthy).",
+            "description": "Service Unavailable",
             "headers": {
-              "X-Request-Id": { "$ref": "#/components/headers/X-Request-Id" }
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
             },
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden: not received over the trusted path, or not allowed for this caller.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
               }
             }
           }
@@ -59,24 +135,78 @@
   },
   "components": {
     "schemas": {
-      "HealthStatus": {
-        "type": "string",
-        "enum": ["Healthy", "Degraded", "Unhealthy"]
-      },
       "HealthResponse": {
+        "required": [
+          "status"
+        ],
         "type": "object",
-        "required": ["status"],
         "properties": {
-          "status": { "$ref": "#/components/schemas/HealthStatus" }
-        },
-        "additionalProperties": false
+          "status": {
+            "$ref": "#/components/schemas/HealthStatus"
+          }
+        }
+      },
+      "HealthStatus": {
+        "enum": [
+          "Unhealthy",
+          "Degraded",
+          "Healthy"
+        ],
+        "type": "string"
+      },
+      "ProblemDetails": {
+        "required": [
+          "status",
+          "code",
+          "requestId"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "code": {
+            "enum": [
+              "FORBIDDEN",
+              "NOT_FOUND",
+              "METHOD_NOT_ALLOWED",
+              "INTERNAL_ERROR",
+              "SERVICE_UNAVAILABLE",
+              "HTTP_ERROR"
+            ],
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        }
       }
     },
     "headers": {
       "X-Request-Id": {
         "description": "Identifier of the request, also used in logs and error responses.",
-        "schema": { "type": "string" }
+        "schema": {
+          "type": "string"
+        }
       }
     }
-  }
+  },
+  "tags": [
+    {
+      "name": "Health"
+    }
+  ]
 }

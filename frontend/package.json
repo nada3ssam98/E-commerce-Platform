@@ -4,6 +4,8 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "dev:storefront": "ng serve storefront --port 4200",
+    "dev:admin": "ng serve admin --port 4300",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
@@ -14,7 +16,8 @@
     "contracts:check": "openapi-typescript ../contracts/openapi.json --output projects/api-contracts/src/lib/schema.d.ts --check",
     "lint": "ng lint",
     "test:ssr": "node --test \"projects/storefront/server-tests/*.test.mjs\"",
-    "scan:bundles": "node ../scripts/scan-browser-bundles.mjs"
+    "scan:bundles": "node ../scripts/scan-browser-bundles.mjs",
+    "e2e": "playwright test"
   },
   "private": true,
   "packageManager": "npm@11.12.1",
@@ -37,6 +40,7 @@
     "@angular/compiler-cli": "22.2.3",
     "@angular/localize": "22.2.3",
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.62.1",
     "@types/express": "5.0.6",
     "@types/node": "24.19.2",
     "angular-eslint": "22.6.0",
@@ -56,6 +60,9 @@
   "overrides": {
     "openapi-typescript": {
       "typescript": "$typescript"
+    },
+    "@angular/build": {
+      "vite": "8.3.4"
     }
   }
 }
