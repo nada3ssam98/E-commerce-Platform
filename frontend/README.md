@@ -25,6 +25,7 @@ npm run contracts:check      # fails when the committed types do not match the c
 npm run lint                 # angular-eslint (TypeScript and templates, incl. accessibility rules)
 npm run scan:bundles         # after build: browser bundles contain no trusted-path names or values (TH-8)
 npm run test:ssr             # after build: integration tests of the built SSR server (fake API fixture)
+npm run e2e                  # after build + API Release build: Playwright through the local edge (needs Caddy; see ../README.md)
 ```
 
 ## API contracts

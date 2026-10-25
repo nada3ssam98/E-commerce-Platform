@@ -27,6 +27,36 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Forbidden: not received over the trusted path, or not allowed for this caller.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -68,6 +98,36 @@
                 }
               }
             }
+          },
+          "403": {
+            "description": "Forbidden: not received over the trusted path, or not allowed for this caller.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected error.",
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -93,6 +153,46 @@
           "Healthy"
         ],
         "type": "string"
+      },
+      "ProblemDetails": {
+        "required": [
+          "status",
+          "code",
+          "requestId"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string"
+          },
+          "code": {
+            "enum": [
+              "FORBIDDEN",
+              "NOT_FOUND",
+              "METHOD_NOT_ALLOWED",
+              "INTERNAL_ERROR",
+              "SERVICE_UNAVAILABLE",
+              "HTTP_ERROR"
+            ],
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        }
       }
     },
     "headers": {

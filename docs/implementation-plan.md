@@ -80,9 +80,9 @@ No other contradiction between approved decisions was found. ADR-02's placement-
 | D-4 | Operator CLI argument parser not named | M1 | **[TECH]** `System.CommandLine` (stable 2.x; version verified when added) |
 | D-5 | Table/column naming convention | M0 step 2 | **[TECH]** snake_case (matches milestone-m0-m1 table names), via explicit configuration or `EFCore.NamingConventions` |
 | D-6 | Database roles beyond "migration vs application" | M0 step 2 | **[TECH]** §6.4 |
-| D-7 | Secret-scan and dependency-update tooling | M0 step 6 | **[TECH]** gitleaks CLI in CI; Dependabot for NuGet, npm, GitHub Actions |
-| D-8 | Problem Details `code` catalog not centralized | M0 step 3 | **[TECH]** one `ErrorCodes` registry in SharedKernel; codes listed in the OpenAPI document |
-| D-9 | Documentation drift: ADR-11 Node baseline "≥ 24.13.1" vs. commit `a634721` "Angular 22 requires ^24.15.0"; the ADR-11 toolchain table is broken by a paragraph inside it; milestone P6 says "recorded in the M0 pull request" (the PR body is empty) | M0 step 4 | Verify against Angular's compatibility table when the workspace is created; fix ADR-11 and P6 in that PR |
+| D-7 | Secret-scan and dependency-update tooling | M0 step 6 | **[TECH]** gitleaks CLI in CI; Dependabot for NuGet, npm, GitHub Actions. *Done 2026-10-25: `Secret scan` CI job (gitleaks 8.30.1, `.gitleaks.toml`), `.github/dependabot.yml`* |
+| D-8 | Problem Details `code` catalog not centralized | M0 step 3 | **[TECH]** one `ErrorCodes` registry in SharedKernel; codes listed in the OpenAPI document. *Done: registry in M0 step 3; `ProblemDetails` schema with the `code` enum generated from it in `contracts/openapi.json` (2026-10-25)* |
+| D-9 | Documentation drift: ADR-11 Node baseline "≥ 24.13.1" vs. commit `a634721` "Angular 22 requires ^24.15.0"; the ADR-11 toolchain table is broken by a paragraph inside it; milestone P6 says "recorded in the M0 pull request" (the PR body is empty) | M0 step 4 | Verify against Angular's compatibility table when the workspace is created; fix ADR-11 and P6 in that PR. *Done: ADR-11 and P6 corrected 2026-10-19; the last stale "≥ 24.13.1" (milestone-m0-m1 §2) corrected 2026-10-25* |
 | D-10 | Phase 5 UI design (ui-design.md) is a draft | Before M2 (admin shell) and M4 (storefront) | Owner review; M1 uses unbranded platform-default styles only |
 
 ---
