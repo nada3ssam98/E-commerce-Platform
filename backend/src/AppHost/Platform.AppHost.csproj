@@ -23,6 +23,8 @@
     <PackageReference Include="Aspire.Hosting.PostgreSQL" />
     <!-- Security pin (see Directory.Packages.props). -->
     <PackageReference Include="MessagePack" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
   </ItemGroup>
 
 </Project>
